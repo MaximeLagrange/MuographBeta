@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from torch import Tensor
-from typing import Optional
+from typing import Optional, Tuple
 
 
 class Hits:
@@ -10,11 +10,12 @@ class Hits:
     A class to handle and process muon hit data from a CSV file.
     """
 
-    _hits = None
+    _gen_hits = None
+    _reco_hits = None
     _E = None
 
     def __init__(
-        self, csv_filename: Optional[Path] = None, df: Optional[pd.DataFrame] = None
+        self, csv_filename: Optional[Path] = None, df: Optional[pd.DataFrame] = None, spatial_res: Optional[Tensor] = None
     ) -> None:
         r"""
         Initializes the Hits object with the path to the CSV file or a pd.DataFrame
@@ -34,6 +35,8 @@ class Hits:
             self._df = df
         else:
             raise ValueError("Either csv_filename or df must be provided.")
+        
+        self.spatial_res = spatial_res
 
     @staticmethod
     def get_data_frame_from_csv(csv_filename: Path) -> pd.DataFrame:
@@ -111,6 +114,28 @@ class Hits:
             raise KeyError("Column 'E' not found in the DataFrame.")
         return torch.tensor(df["E"].values)
 
+    @staticmethod
+    def get_reco_hits_from_gen_hits(gen_hits: Tensor, spatial_res: Tensor) -> Tensor:
+        r"""
+        Smear the gen_hits position using a Normal distribution centered at 0, 
+        and with standard deviation equal to the spatial resolution along a given dimension
+
+        Args:
+            gen_hits (Tensor): The generated level hits, with size (3, n_plane, mu).
+            spatial_res (Tensor): The spatial resolution along x,y,z with size (3).
+
+        Returns:
+            reco_hits (Tensor): The reconstructed hits, with size (3, n_plane, mu)
+        """
+        reco_hits = torch.ones_like(gen_hits) * gen_hits
+
+        for i in range(spatial_res.size()[0]):
+            if spatial_res[i] != 0.:
+                reco_hits[i] += torch.normal(mean = 0., std = torch.ones_like(reco_hits[i]) * spatial_res[i])
+
+        return reco_hits
+
+
     @property
     def E(self) -> Tensor:
         r"""
@@ -121,10 +146,21 @@ class Hits:
         return self._E
 
     @property
-    def hits(self) -> Tensor:
+    def gen_hits(self) -> Tensor:
         r"""
         Hits data as a Tensor.
         """
-        if self._hits is None:
-            self._hits = self.get_hits_from_df(self._df)
-        return self._hits
+        if self._gen_hits is None:
+            self._gen_hits = self.get_hits_from_df(self._df)
+        return self._gen_hits
+    
+    @property
+    def reco_hits(self) -> Tensor:
+        r"""
+        Reconstructed hits data as Tensor.
+        """
+        if self.spatial_res is None:
+            return self.gen_hits
+        elif self._reco_hits is None:
+            self._reco_hits = self.get_reco_hits_from_gen_hits(gen_hits = self.gen_hits, spatial_res = self.spatial_res)
+        return self._reco_hits
