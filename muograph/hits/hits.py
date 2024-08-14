@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from torch import Tensor
+from typing import Optional
 
 
 class Hits:
@@ -12,16 +13,27 @@ class Hits:
     _hits = None
     _E = None
 
-    def __init__(self, csv_filename: Path) -> None:
+    def __init__(
+        self, csv_filename: Optional[Path] = None, df: Optional[pd.DataFrame] = None
+    ) -> None:
         r"""
-        Initializes the Hits object with the path to the CSV file.
+        Initializes the Hits object with the path to the CSV file or a pd.DataFrame
 
         Args:
             csv_filename (Path): The path to the CSV file containing
             hit and energy data.
+            df (pd.DataFrame): The CSV file containing
+            hit and energy data.
         """
-        self.csv_filename = csv_filename
-        self._df = self.get_data_frame_from_csv(csv_filename)
+        if csv_filename is not None and df is not None:
+            raise ValueError("Provide either csv_filename or df, not both.")
+
+        if csv_filename is not None:
+            self._df = self.get_data_frame_from_csv(csv_filename)
+        elif df is not None:
+            self._df = df
+        else:
+            raise ValueError("Either csv_filename or df must be provided.")
 
     @staticmethod
     def get_data_frame_from_csv(csv_filename: Path) -> pd.DataFrame:
