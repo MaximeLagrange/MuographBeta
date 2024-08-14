@@ -12,7 +12,6 @@ class Hits:
 
     _gen_hits = None
     _reco_hits = None
-
     _E = None
 
     def __init__(
