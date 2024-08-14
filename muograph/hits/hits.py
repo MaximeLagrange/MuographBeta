@@ -5,15 +5,36 @@ from torch import Tensor
 
 
 class Hits:
+    r"""
+    A class to handle and process muon hit data from a CSV file.
+    """
+
     _hits = None
     _E = None
 
     def __init__(self, csv_filename: Path) -> None:
+        r"""
+        Initializes the Hits object with the path to the CSV file.
+
+        Args:
+            csv_filename (Path): The path to the CSV file containing
+            hit and energy data.
+        """
         self.csv_filename = csv_filename
         self._df = self.get_data_frame_from_csv(csv_filename)
 
     @staticmethod
     def get_data_frame_from_csv(csv_filename: Path) -> pd.DataFrame:
+        r"""
+        Reads a CSV file into a DataFrame.
+
+        Args:
+            csv_filename (Path): The path to the CSV file containing
+            hit and energy data.
+
+        Returns:
+            pd.DataFrame: The DataFrame containing the data from the CSV file.
+        """
         if not csv_filename.exists():
             raise FileNotFoundError(f"The file {csv_filename} does not exist.")
 
@@ -22,14 +43,14 @@ class Hits:
     @staticmethod
     def get_hits_from_df(df: pd.DataFrame) -> Tensor:
         r"""
-        Method to get hits DataFrame as a Tensor.
+        Extracts hits data from a DataFrame and returns it as a Tensor.
 
         IMPORTANT:
             The DataFrame must have the following columns:
             "X0, Y0, Z0, ..., Xi, Yi, Zi", where Xi is the muon hit x position on plane i.
 
         Args:
-            df (pd.DataFrame): DataFrame where the hits are saved.
+            df (pd.DataFrame): DataFrame containing the hit data.
 
         Returns:
             hits (Tensor): Hits, with size (3, n_plane, n_mu)
@@ -62,7 +83,7 @@ class Hits:
     @staticmethod
     def get_energy_from_df(df: pd.DataFrame) -> Tensor:
         r"""
-        Method to get hits DataFrame as a Tensor.
+        Extracts energy data from a DataFrame and returns it as a Tensor.
 
         IMPORTANT:
             The DataFrame must have the following column:
@@ -80,12 +101,18 @@ class Hits:
 
     @property
     def E(self) -> Tensor:
+        r"""
+        Muon's energy as a Tensor.
+        """
         if self._E is None:
             self._E = self.get_energy_from_df(self._df)
         return self._E
 
     @property
     def hits(self) -> Tensor:
+        r"""
+        Hits data as a Tensor.
+        """
         if self._hits is None:
             self._hits = self.get_hits_from_df(self._df)
         return self._hits
