@@ -25,7 +25,7 @@ class Volume:
             position (Tuple[float, float, float]): Position of the center of the volume in xyz.
             dimension (Tuple[float, float, float]): The xyz span of the volume.
             voxel_width (float): The size of the voxel. The user must ensure that
-                                 the dimension of the volume can be divided by the voxel width.
+            the dimension of the volume can be divided by the voxel width.
         """
         self.xyz = torch.tensor(position, dtype=torch.float64)
         self.dxyz = torch.tensor(dimension, dtype=torch.float64)
@@ -64,6 +64,7 @@ class Volume:
             )
 
         nx, ny, nz = n_vox.int().tolist()
+
         return (nx, ny, nz)
 
     @staticmethod
