@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from torch import Tensor
-from typing import Optional, Tuple
+from typing import Optional
 
 
 class Hits:
@@ -12,10 +12,14 @@ class Hits:
 
     _gen_hits = None
     _reco_hits = None
+
     _E = None
 
     def __init__(
-        self, csv_filename: Optional[Path] = None, df: Optional[pd.DataFrame] = None, spatial_res: Optional[Tensor] = None
+        self,
+        csv_filename: Optional[Path] = None,
+        df: Optional[pd.DataFrame] = None,
+        spatial_res: Optional[Tensor] = None,
     ) -> None:
         r"""
         Initializes the Hits object with the path to the CSV file or a pd.DataFrame
@@ -35,7 +39,7 @@ class Hits:
             self._df = df
         else:
             raise ValueError("Either csv_filename or df must be provided.")
-        
+
         self.spatial_res = spatial_res
 
     @staticmethod
@@ -117,7 +121,7 @@ class Hits:
     @staticmethod
     def get_reco_hits_from_gen_hits(gen_hits: Tensor, spatial_res: Tensor) -> Tensor:
         r"""
-        Smear the gen_hits position using a Normal distribution centered at 0, 
+        Smear the gen_hits position using a Normal distribution centered at 0,
         and with standard deviation equal to the spatial resolution along a given dimension
 
         Args:
@@ -130,11 +134,12 @@ class Hits:
         reco_hits = torch.ones_like(gen_hits) * gen_hits
 
         for i in range(spatial_res.size()[0]):
-            if spatial_res[i] != 0.:
-                reco_hits[i] += torch.normal(mean = 0., std = torch.ones_like(reco_hits[i]) * spatial_res[i])
+            if spatial_res[i] != 0.0:
+                reco_hits[i] += torch.normal(
+                    mean=0.0, std=torch.ones_like(reco_hits[i]) * spatial_res[i]
+                )
 
         return reco_hits
-
 
     @property
     def E(self) -> Tensor:
@@ -153,7 +158,7 @@ class Hits:
         if self._gen_hits is None:
             self._gen_hits = self.get_hits_from_df(self._df)
         return self._gen_hits
-    
+
     @property
     def reco_hits(self) -> Tensor:
         r"""
@@ -162,5 +167,7 @@ class Hits:
         if self.spatial_res is None:
             return self.gen_hits
         elif self._reco_hits is None:
-            self._reco_hits = self.get_reco_hits_from_gen_hits(gen_hits = self.gen_hits, spatial_res = self.spatial_res)
+            self._reco_hits = self.get_reco_hits_from_gen_hits(
+                gen_hits=self.gen_hits, spatial_res=self.spatial_res
+            )
         return self._reco_hits
