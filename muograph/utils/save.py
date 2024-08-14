@@ -28,7 +28,7 @@ class AbsSave:
             If the directory already exists, this method will not raise an exception.
             It will simply indicate that the directory already exists.
         """
-        dir_name.mkdir(parents=True, exist_ok=True)
         print(
             f"\n{dir_name} directory {'created' if not dir_name.exists() else 'already exists'}"
         )
+        dir_name.mkdir(parents=True, exist_ok=True)
