@@ -175,13 +175,19 @@ class Tracking(AbsSave):
         # Zenith angle
         axs[0].hist(self.theta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
         axs[0].axvline(
-            x=self.theta.mean().numpy() * 180 / math.pi, label="mean", color="red"
+            x=self.theta.mean().numpy() * 180 / math.pi,
+            label=f"mean = {self.theta.mean().numpy():.1f}",
+            color="red",
         )
         axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]")
 
         # Energy
         axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
-        axs[1].axvline(x=self.E.mean().numpy(), label="mean", color="red")
+        axs[1].axvline(
+            x=self.E.mean().numpy(),
+            label=f"mean = {self.E.mean().numpy():.0f}",
+            color="red",
+        )
         axs[1].set_xlabel(r" Energy [MeV]")
 
         for ax in axs:
