@@ -3,12 +3,15 @@ from torch import Tensor
 from typing import Tuple, Optional
 import numpy as np
 import math
+from pathlib import Path
+import matplotlib.pyplot as plt
 
 from utils.save import AbsSave
 from hits.hits import Hits
+from plotting.params import n_bins, alpha
 
 
-class Tracking:
+class Tracking(AbsSave):
     r"""
     A class for tracking muons based on hits data.
     """
@@ -18,18 +21,43 @@ class Tracking:
     _theta_xy = None  # (mu)
     _angular_error = None  # (mu)
     _angular_res = None
+    _output_dir = None
+
+    _vars_to_save = [
+        "tracks",
+        "points",
+        "theta",
+        "theta_xy",
+        "angular_res",
+    ]
 
     def __init__(
         self,
         hits: Hits,
+        label: str,
+        output_dir: Optional[str] = None,
     ) -> None:
         r"""
         Initializes the Tracking object.
 
         Args:
             hits (Hits): An instance of the Hits class.
+            label (str): The position of the hits with respect to the passive volume.
+            either 'above' or 'below'
+            output_dir (str): The name of the directory where to save the Tracking attributes
+            in _vars_to_save.
         """
+        if output_dir is None:
+            output_dir = str(Path(__file__).parent.parent.parent) + "/output/"
+        super().__init__(output_dir)
+
         self.hits = hits
+        self.label = label
+        self.save_attr(
+            attributes=self._vars_to_save,
+            directory=self.output_dir,
+            filename="tracks" + self.label,
+        )
 
     @staticmethod
     def get_tracks_points_from_hits(hits: Tensor) -> Tuple[Tensor, Tensor]:
@@ -130,6 +158,43 @@ class Tracking:
         gen_theta = self.get_theta_from_tracks(tracks=gen_tracks)
         return gen_theta - reco_theta
 
+    def plot_muon_features(self, figname: Optional[str] = None) -> None:
+        r"""
+        Plot the zenith angle and energy of the reconstructed tracks.
+        Args:
+            figname (Tensor): If provided, save the figure at self.output / figname.
+        """
+
+        fig, axs = plt.subplots(ncols=2, figsize=(10, 4))
+
+        # Fig title
+        fig.suptitle(
+            f"Batch of {self.tracks.size()[0]} muons", fontsize=15, fontweight="bold"
+        )
+
+        # Zenith angle
+        axs[0].hist(self.theta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        axs[0].axvline(
+            x=self.theta.mean().numpy() * 180 / math.pi, label="mean", color="red"
+        )
+        axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]")
+
+        # Energy
+        axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
+        axs[1].axvline(x=self.E.mean().numpy(), label="mean", color="red")
+        axs[1].set_xlabel(r" Energy [MeV]")
+
+        for ax in axs:
+            ax.grid("on")
+            ax.set_ylabel("Frequency [a.u]")
+            ax.legend()
+        plt.tight_layout()
+
+        if figname is not None:
+            plt.savefig(self.output_dir / figname, bbox_inches="tight")
+
+        plt.show()
+
     @property
     def tracks(self) -> Tensor:
         r"""
@@ -170,6 +235,11 @@ class Tracking:
         if self._theta is None:
             self._theta = self.get_theta_from_tracks(self.tracks)
         return self._theta
+
+    @property
+    def E(self) -> Tensor:
+        r"""The muons' energy."""
+        return self.hits.E
 
     @property
     def n_mu(self) -> int:

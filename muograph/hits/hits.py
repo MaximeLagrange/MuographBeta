@@ -10,8 +10,9 @@ class Hits:
     A class to handle and process muon hit data from a CSV file.
     """
 
-    _gen_hits = None
+    _gen_hits = None  # (3, n_plane, mu)
     _reco_hits = None
+
     _E = None
 
     def __init__(
@@ -114,7 +115,9 @@ class Hits:
             E (Tensor): Muons energy, with size (n_mu)
         """
         if "E" not in df:
-            raise KeyError("Column 'E' not found in the DataFrame.")
+            raise KeyError(
+                "Column 'E' not found in the DataFrame. Muon energy set to 0."
+            )
         return torch.tensor(df["E"].values)
 
     @staticmethod
@@ -143,16 +146,21 @@ class Hits:
     @property
     def E(self) -> Tensor:
         r"""
-        Muon's energy as a Tensor.
+        Muon's energy as a Tensor. If is not provided in the input csv/DataFrame,
+        it is automatically set to zero.
         """
         if self._E is None:
-            self._E = self.get_energy_from_df(self._df)
+            try:
+                self._E = self.get_energy_from_df(self._df)
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                self._E = torch.zeros(self.reco_hits.size()[-1])  # Setting _E to zero
         return self._E
 
     @property
     def gen_hits(self) -> Tensor:
         r"""
-        Hits data as a Tensor.
+        Hits data as a Tensor with size (3, n_plane, mu).
         """
         if self._gen_hits is None:
             self._gen_hits = self.get_hits_from_df(self._df)
@@ -161,7 +169,7 @@ class Hits:
     @property
     def reco_hits(self) -> Tensor:
         r"""
-        Reconstructed hits data as Tensor.
+        Reconstructed hits data as Tensor with size (3, n_plane, mu).
         """
         if self.spatial_res is None:
             return self.gen_hits
