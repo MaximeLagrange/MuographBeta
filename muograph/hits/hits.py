@@ -22,7 +22,7 @@ class Hits:
         spatial_res: Optional[Tensor] = None,
     ) -> None:
         r"""
-        Initializes the Hits object with the path to the CSV file or a pd.DataFrame
+        Initializes the Hits object with the path to the CSV file or a pd.DataFrame.
 
         Args:
             csv_filename (Path): The path to the CSV file containing
@@ -76,6 +76,7 @@ class Hits:
         """
         # Extract plane count and validate columns
         planes = [col for col in df.columns if col.startswith("X")]
+        plane_numbers = [int(s[1:]) for s in planes]
         n_plane = len(planes)
 
         if not planes or len(planes) == 0:
@@ -83,7 +84,7 @@ class Hits:
 
         hits = torch.zeros((3, n_plane, len(df)))
 
-        for plane in range(n_plane):
+        for i, plane in enumerate(plane_numbers):
             x_col = f"X{plane}"
             y_col = f"Y{plane}"
             z_col = f"Z{plane}"
@@ -93,9 +94,9 @@ class Hits:
                     f"Missing columns for plane {plane}: {x_col}, {y_col}, {z_col}"
                 )
 
-            hits[0, plane, :] = torch.tensor(df[x_col].values)
-            hits[1, plane, :] = torch.tensor(df[y_col].values)
-            hits[2, plane, :] = torch.tensor(df[z_col].values)
+            hits[0, i, :] = torch.tensor(df[x_col].values)
+            hits[1, i, :] = torch.tensor(df[y_col].values)
+            hits[2, i, :] = torch.tensor(df[z_col].values)
 
         return hits
 
