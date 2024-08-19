@@ -378,7 +378,7 @@ class TrackingMST(AbsSave):
         Remove muons specified as False in `mask`.
 
         Arguments:
-            keep_mask: (N,) Boolean tensor. Muons with False elements will be removed.
+            mask: (N,) Boolean tensor. Muons with False elements will be removed.
         """
 
         # Set attributes without setter method to None
