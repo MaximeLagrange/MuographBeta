@@ -3,7 +3,6 @@ from torch import Tensor
 from typing import Tuple, Optional
 import numpy as np
 import math
-from pathlib import Path
 import matplotlib.pyplot as plt
 
 from utils.save import AbsSave
@@ -15,19 +14,16 @@ class Tracking(AbsSave):
     r"""
     A class for tracking muons based on hits data.
     """
-    _tracks = None  # (mu, 3)
-    _points = None  # (mu, 3)
-    _theta = None  # (mu)
-    _theta_xy = None  # (mu)
-    _angular_error = None  # (mu)
-    _angular_res = None
-    _output_dir = None
+    _tracks: Optional[Tensor] = None  # (mu, 3)
+    _points: Optional[Tensor] = None  # (mu, 3)
+    _theta: Optional[Tensor] = None  # (mu)
+    _theta_xy: Optional[Tensor] = None  # (mu)
+    _angular_error: Optional[None] = None  # (mu)
+    _angular_res: Optional[float] = None
 
     _vars_to_save = [
         "tracks",
         "points",
-        "theta",
-        "theta_xy",
         "angular_res",
     ]
 
@@ -47,16 +43,19 @@ class Tracking(AbsSave):
             output_dir (str): The name of the directory where to save the Tracking attributes
             in _vars_to_save.
         """
-        if output_dir is None:
-            output_dir = str(Path(__file__).parent.parent.parent) + "/output/"
+
         super().__init__(output_dir)
 
         self.hits = hits
-        self.label = label
+        if label in ["above", "below"]:
+            self.label = label
+        else:
+            raise ValueError("Provide either 'above' or 'below' as label")
+
         self.save_attr(
             attributes=self._vars_to_save,
             directory=self.output_dir,
-            filename="tracks" + self.label,
+            filename="tracks_" + self.label,
         )
 
     @staticmethod
@@ -100,8 +99,8 @@ class Tracking(AbsSave):
         points_np = np.array(points)
 
         # Convert the results back to torch tensors if needed
-        tracks_tensor = torch.tensor(tracks_np)
-        points_tensor = torch.tensor(points_np)
+        tracks_tensor = Tensor(tracks_np)
+        points_tensor = Tensor(points_np)
 
         return tracks_tensor, points_tensor
 
@@ -176,7 +175,7 @@ class Tracking(AbsSave):
         axs[0].hist(self.theta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
         axs[0].axvline(
             x=self.theta.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.theta.mean().numpy():.1f}",
+            label=f"mean = {self.theta.mean().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
         axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]")
@@ -185,7 +184,7 @@ class Tracking(AbsSave):
         axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
         axs[1].axvline(
             x=self.E.mean().numpy(),
-            label=f"mean = {self.E.mean().numpy():.0f}",
+            label=f"mean = {self.E.mean().numpy():.3E}",
             color="red",
         )
         axs[1].set_xlabel(r" Energy [MeV]")
@@ -278,11 +277,235 @@ class Tracking(AbsSave):
 
 
 class TrackingMST(AbsSave):
+    r"""
+    A class for tracking muons in the context of a Muon Scattering Tomography analysis.
+    """
+
+    _theta_in: Optional[Tensor] = None  # (mu)
+    _theta_out: Optional[Tensor] = None  # (mu)
+    _theta_xy_in: Optional[Tensor] = None  # (2, mu)
+    _theta_xy_out: Optional[Tensor] = None  # (2, mu)
+    _dtheta: Optional[Tensor] = None  # (mu)
+
+    _vars_to_load = [
+        "tracks",
+        "points",
+        "angular_res",
+    ]
+
     def __init__(
         self,
-        tracking_in: Tracking,
-        tracking_out: Tracking,
+        tracking_files: Optional[Tuple[str, str]] = None,
+        trackings: Optional[Tuple[Tracking, Tracking]] = None,
         output_dir: Optional[str] = None,
     ) -> None:
-        self.tracking_in = tracking_in
-        self.tracking_out = tracking_out
+        r"""
+        Initializes the TrackingMST object with either 2 instances of the Tracking class
+        (with tags 'above' and 'below') or with hdf5 files where Tracking attributes where saved.
+
+        Args:
+            - tracking_files (Optional[Tuple[str, str]]): path to hdf5 files
+            where Tracking class attributes are saved
+            - trackings (Optional[Tuple[Tracking, Tracking]]): instances of the Tracking class
+            for the incoming muon tracks (Tracking.label = 'above') and outgoing tracks
+            (Tracking.label = 'below')
+            -  output_dir (Optional[str]): Path to a directory where to sav TrackingMST attributes
+            in a hdf5 file. (Not Implemented Yet).
+        """
+        super().__init__(output_dir)
+
+        if tracking_files is None and trackings is None:
+            raise ValueError(
+                "Provide either a list of tracking files or a list of Tracking instances."
+            )
+
+        # Load data from tracking hdf5 files
+        elif trackings is None and tracking_files is not None:
+            for tracking_file, tag in zip(tracking_files, ["_in", "_out"]):
+                self.load_attr(self._vars_to_load, tracking_file, tag=tag)
+
+        # Load data from Tracking instances
+        elif trackings is not None and tracking_files is None:
+            for tracking, tag in zip(trackings, ["_in", "_out"]):
+                self.load_attr_from_tracking(tracking, tag)
+
+    def load_attr_from_tracking(self, tracking: Tracking, tag: str) -> None:
+        r"""
+        Load class attributes in TrackingMST._vars_to_load from the input Tracking class.
+        Attributes name are modified according to the tag as `attribute_name` + `tag`,
+        so that incoming and outgoing muon features can be treated independently.
+
+        Args:
+            - tracking (Tracking): Instance of the Tracking class.
+            - tag (str): tag to add to the attribuites name (either `_in` or `_out`)
+        """
+
+        for attr in self._vars_to_load:
+            data = getattr(tracking, attr)
+            attr += tag
+            setattr(self, attr, data)
+
+    @staticmethod
+    def compute_dtheta_from_tracks(
+        tracks_in: Tensor, tracks_out: Tensor, tol: float = 1.0e-12
+    ) -> Tensor:
+        r"""
+        Computes the scattering angle between the incoming and outgoing muon tracks.
+
+        Args:
+            - tracks_in (Tensor): The incoming muon tracks with size (mu, 3)
+            - tracks_out (Tensor): The outgoing muon tracks with size (mu, 3)
+            - tol (float): A tolerance parameter to avoid errors when computing acos(dot_prod).
+            the dot_prod is clamped between (-1 + tol, 1 - tol). Default value is 1.e12.
+
+        Returns:
+            - dtheta (Tensor): The scattering angle between the incoming and outgoing muon
+            tracks in [rad], with size (mu).
+        """
+
+        def norm(x: Tensor) -> Tensor:
+            return torch.sqrt((x**2).sum(dim=-1))
+
+        dot_prod = torch.abs(tracks_in * tracks_out).sum(dim=-1) / (
+            norm(tracks_in) * norm(tracks_out)
+        )
+        dot_prod = torch.clamp(dot_prod, -1.0 + tol, 1.0 - tol)
+        dtheta = torch.acos(dot_prod)
+        return dtheta
+
+    def _filter_muons(self, mask: Tensor) -> None:
+        r"""
+        Remove muons specified as False in `mask`.
+
+        Arguments:
+            keep_mask: (N,) Boolean tensor. Muons with False elements will be removed.
+        """
+
+        # Set attributes without setter method to None
+        self._reset_vars()
+
+        n_muons = self.tracks_in.size()[0]
+        # Loop over class attributes and apply the mask is Tensor
+        for var in vars(self).keys():
+            data = getattr(self, var)
+            if isinstance(data, Tensor):
+                if data.size()[0] == n_muons:
+                    setattr(self, var, data[mask])
+
+    def _reset_vars(self) -> None:
+        r"""
+        Reset attributes to None.
+        """
+
+        self._theta_in = None  # (mu)
+        self._theta_out = None  # (mu)
+        self._theta_xy_in = None  # (2, mu)
+        self._theta_xy_out = None  # (2, mu)
+        self._dtheta = None  # (mu)
+
+    # Scattering angle
+    @property
+    def dtheta(self) -> Tensor:
+        r"""Muon scattering angle measured between the incoming and outgoing tracks"""
+        if self._dtheta is None:
+            self._dtheta = self.compute_dtheta_from_tracks(
+                self.tracks_in, self.tracks_out
+            )
+        return self._dtheta
+
+    # Tracks
+    @property
+    def tracks_in(self) -> Tensor:
+        r"""Incoming muon tracks, with size (mu, 3)"""
+        return self._tracks_in
+
+    @tracks_in.setter
+    def tracks_in(self, value: Tensor) -> None:
+        self._tracks_in = value
+
+    @property
+    def tracks_out(self) -> Tensor:
+        r"""Outgoing muon tracks, with size (mu, 3)"""
+        return self._tracks_out
+
+    @tracks_out.setter
+    def tracks_out(self, value: Tensor) -> None:
+        self._tracks_out = value
+
+    # Points
+    @property
+    def points_in(self) -> Tensor:
+        r"""Points on the incoming muon tracks, with size (mu, 3)"""
+        return self._points_in
+
+    @points_in.setter
+    def points_in(self, value: Tensor) -> None:
+        self._points_in = value
+
+    @property
+    def points_out(self) -> Tensor:
+        r"""Points on the outgoing muon tracks, with size (mu, 3)"""
+        return self._points_out
+
+    @points_out.setter
+    def points_out(self, value: Tensor) -> None:
+        self._points_out = value
+
+    @property
+    def theta_in(self) -> Tensor:
+        r"""
+        Zenith angle of the incoming tracks.
+        """
+        if self._theta_in is None:
+            self._theta_in = Tracking.get_theta_from_tracks(self.tracks_in)
+        return self._theta_in
+
+    @property
+    def theta_out(self) -> Tensor:
+        r"""
+        Zenith angle of the outgoing tracks.
+        """
+        if self._theta_out is None:
+            self._theta_out = Tracking.get_theta_from_tracks(self.tracks_out)
+        return self._theta_out
+
+    @property
+    def theta_xy_in(self) -> Tensor:
+        r"""
+        Projected zenith angles of the incoming tracks.
+        """
+        if self._theta_xy_in is None:
+            self._theta_xy_in = Tracking.get_theta_xy_from_tracks(self.tracks_in)
+        return self._theta_xy_in
+
+    @property
+    def theta_xy_out(self) -> Tensor:
+        r"""
+        Projected zenith angles of the outgoing tracks.
+        """
+        if self._theta_xy_out is None:
+            self._theta_xy_out = Tracking.get_theta_xy_from_tracks(self.tracks_out)
+        return self._theta_xy_out
+
+    # Resolutions
+    @property
+    def angular_res_in(self) -> float:
+        r"""
+        Angular resolution of the incoming tracks.
+        """
+        return self._angular_res_in
+
+    @angular_res_in.setter
+    def angular_res_in(self, value: float) -> None:
+        self._angular_res_in = value
+
+    @property
+    def angular_res_out(self) -> float:
+        r"""
+        Angular resolution of the outgoing tracks.
+        """
+        return self._angular_res_out
+
+    @angular_res_out.setter
+    def angular_res_out(self, value: float) -> None:
+        self._angular_res_out = value
