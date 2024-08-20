@@ -83,7 +83,10 @@ class AbsSave:
             for attr in attributes:
                 data = f[attr]
                 if tag is not None:
-                    attr += tag
+                    if (
+                        attr != "E"
+                    ):  # Do not differenciate incoming energy from outgoing energy
+                        attr += tag
                 if data.ndim == 0:
                     setattr(self, attr, data[()])
                 elif type(data[:]) is np.ndarray:
