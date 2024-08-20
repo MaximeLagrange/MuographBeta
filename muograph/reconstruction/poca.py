@@ -16,6 +16,10 @@ def are_parallel(v1: Tensor, v2: Tensor, tol: float = 1e-5) -> bool:
 
 
 class POCA(AbsSave):
+    r"""
+    A class for Point Of Closest Approach computation in the context of a Muon Scattering Tomography analysis.
+    """
+
     _parallel_mask: Optional[Tensor] = None  # (mu)
     _poca_points: Optional[Tensor] = None  # (mu, 3)
     _n_poca_per_vox: Optional[Tensor] = None  # (nx, ny, nz)
@@ -41,6 +45,19 @@ class POCA(AbsSave):
         poca_file: Optional[str] = None,
         output_dir: Optional[str] = None,
     ) -> None:
+        r"""
+        Initializes the POCA object with either an instance of the TrackingMST class or a
+        poca.hdf5 file.
+
+        Args:
+            - tracking (Optional[TrackingMST]): Instance of the TrackingMST class.
+            - voi (Optional[Volume]): Instance of the Volume class. If provided, muon events with
+            poca locations outside the voi will be filtered out, the number of poca locations per voxel
+            `n_poca_per_vox` as well as the voxel indices of each poca location will be computed.
+            poca_file (Optional[str]): The path to the poca.hdf5 to load attributes from.
+            - output_dir (Optional[str]): Path to a directory where to save POCA attributes
+            in a hdf5 file.
+        """
         super().__init__(output_dir)
 
         if tracking is None and poca_file is None:
@@ -172,7 +189,7 @@ class POCA(AbsSave):
     @staticmethod
     def assign_voxel_to_pocas(poca_points: Tensor, voi: Volume) -> List[List[int]]:
         """
-        Get the indinces of the voxel corresponding to each poca points.
+        Get the indinces of the voxel corresponding to each poca point.
 
         Arguments:
             - poca_points: Tensor with size (n_mu, 3).
