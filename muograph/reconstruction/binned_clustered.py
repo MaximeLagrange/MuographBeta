@@ -436,10 +436,10 @@ class BCA(POCA):
             use_p=self.bca_params["use_p"],  # type: ignore
             n_min_per_vox=self.bca_params["n_min_per_vox"],  # type: ignore
             voi=self.voi,
+            momentum=self.bca_tracks.E,
             bca_indices=self.bca_indices,
             poca_points=self.bca_poca_points,
             dtheta=self.bca_tracks.dtheta,
-            metric_method=self._bca_params["metric_method"],  # type: ignore
         )
 
         # compute fina scores
