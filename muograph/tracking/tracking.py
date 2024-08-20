@@ -25,6 +25,7 @@ class Tracking(AbsSave):
         "tracks",
         "points",
         "angular_res",
+        "E",
     ]
 
     def __init__(
@@ -291,6 +292,7 @@ class TrackingMST(AbsSave):
         "tracks",
         "points",
         "angular_res",
+        "E",
     ]
 
     def __init__(
@@ -309,7 +311,7 @@ class TrackingMST(AbsSave):
             - trackings (Optional[Tuple[Tracking, Tracking]]): instances of the Tracking class
             for the incoming muon tracks (Tracking.label = 'above') and outgoing tracks
             (Tracking.label = 'below')
-            -  output_dir (Optional[str]): Path to a directory where to sav TrackingMST attributes
+            -  output_dir (Optional[str]): Path to a directory where to save TrackingMST attributes
             in a hdf5 file. (Not Implemented Yet).
         """
         super().__init__(output_dir)
@@ -333,7 +335,7 @@ class TrackingMST(AbsSave):
         r"""
         Load class attributes in TrackingMST._vars_to_load from the input Tracking class.
         Attributes name are modified according to the tag as `attribute_name` + `tag`,
-        so that incoming and outgoing muon features can be treated independently.
+        so that incoming and outgoing muon features can be treated independently (except for the kinetic energy).
 
         Args:
             - tracking (Tracking): Instance of the Tracking class.
@@ -342,7 +344,8 @@ class TrackingMST(AbsSave):
 
         for attr in self._vars_to_load:
             data = getattr(tracking, attr)
-            attr += tag
+            if attr != "E":
+                attr += tag
             setattr(self, attr, data)
 
     @staticmethod
@@ -402,6 +405,18 @@ class TrackingMST(AbsSave):
         self._theta_xy_in = None  # (2, mu)
         self._theta_xy_out = None  # (2, mu)
         self._dtheta = None  # (mu)
+
+    # Energy
+    @property
+    def E(self) -> Tensor:
+        r"""
+        Muons kinetic energy.
+        """
+        return self._E
+
+    @E.setter
+    def E(self, value: Tensor) -> None:
+        self._E = value
 
     # Scattering angle
     @property
