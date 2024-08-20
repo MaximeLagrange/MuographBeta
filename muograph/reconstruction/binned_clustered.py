@@ -7,18 +7,12 @@ import numpy as np
 import math
 from pathlib import Path
 
-
+from utils.tools import normalize
 from tracking.tracking import TrackingMST
 from reconstruction.poca import POCA
 from volume.volume import Volume
 
 value_type = Union[float, partial, Tuple[float, float], bool, int]
-
-
-def normalize(s: torch.tensor) -> torch.tensor:
-    s_max, s_min = torch.max(s), torch.min(s)
-
-    return (s - s_min) / (s_max - s_min)
 
 
 class BCA(POCA):
