@@ -19,6 +19,7 @@ value_type = Union[partial, Tuple[float, float], bool]
 class ASR(AbsSave):
     _density_pred: Optional[Tensor] = None
     _triggered_voxels: Optional[List[Tensor]] = None
+    _n_mu_per_vox: Optional[Tensor] = None
 
     _ars_params: Dict[str, value_type] = {
         "score_method": partial(np.quantile, q=0.5),
@@ -440,6 +441,18 @@ class ASR(AbsSave):
         else:
             return vox_density_preds
 
+    def get_n_mu_per_vox(
+        self,
+    ) -> Tensor:
+        n_mu_per_vox = torch.zeros(self.voi.n_vox_xyz)
+
+        all_voxels = np.vstack([ev for ev in self.triggered_voxels if len(ev) > 0])
+        unique_voxels, counts = np.unique(all_voxels, axis=0, return_counts=True)
+        for (x, y, z), count in zip(unique_voxels, counts):
+            n_mu_per_vox[x, y, z] += count
+
+        return n_mu_per_vox
+
     @property
     def theta_xy_in(self) -> Tuple[Tensor, Tensor]:
         r"""
@@ -513,3 +526,13 @@ class ASR(AbsSave):
     @triggered_voxels.setter
     def triggered_voxels(self, value: List[Tensor]) -> None:
         self._triggered_voxels = value
+
+    @property
+    def n_mu_per_vox(self) -> Tensor:
+        if self._n_mu_per_vox is None:
+            self._n_mu_per_vox = self.get_n_mu_per_vox()
+        return self._n_mu_per_vox
+
+    @n_mu_per_vox.setter
+    def n_mu_per_vox(self, value: Tensor) -> Tensor:
+        self._n_mu_per_vox = value

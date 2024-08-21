@@ -107,7 +107,7 @@ def plot_poca_points_per_pixel(
 def plot_poca_points(
     poca_points: Tensor,
     dim: int,
-    plot_name: Optional[str],
+    plot_name: Optional[str] = None,
     figsize: Tuple[float, float] = (8, 8),
 ) -> None:
     r"""
@@ -117,6 +117,7 @@ def plot_poca_points(
         - poca_points (Tensor): poca points location.
         - dim (int): Integer defining the projection. dim = 0 -> YZ, dim = 1 -> XZ, dim = 2 -> XY.
     """
+    import mpl_scatter_density  # noqa: F401
 
     xlabels = ["Y", "X", "X"]
     ylabels = ["Z", "Z", "Y"]
@@ -177,9 +178,9 @@ def plot_poca_points_hist2d(poca_points: Tensor, voi: Volume, dim: int = 2) -> N
     plt.show()
 
 
-def plot_density_pred(pred: Tensor, dim: int, plot_name: Optional[str] = None) -> None:
+def plot_voxel_pred(pred: Tensor, dim: int, plot_name: Optional[str] = None) -> None:
     r"""
-    Plot the average density prediction per voxel averaged along a certain direction.
+    Plot the voxel-wise predictions averaged along a certain direction.
 
     Args:
         - pred (Tensor): The scattering denisyt predictions,
