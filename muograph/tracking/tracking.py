@@ -13,29 +13,53 @@ from plotting.params import n_bins, alpha
 class Tracking(AbsSave):
     r"""
     A class for tracking muons based on hits data.
+
+    The muon hits on detector planes are plugged into a linear fit
+    to compute a track T(tx, ty, tz) and a point on that track P(px, py, pz).
+
+    From T(tx, ty, tz), one computes the muons' zenith angles, defined as the
+    angle between the vertical axis z and the muon track. A vertical muon has
+    a 0 [rad] zenith angle.
+
+    The projections of the zenth angle in the XZ and YZ planes,
+    theta_x and theta_y respectively, are also computed.
+
+    If Hits used as input were smeared, the tracking angular resolution is compted as
+    the standard deviation of the distribution of the error on theta. The error on theta,
+    is copmuted by comparing the values of theta computed from the generated hits and
+    from the smeared hits.
     """
     _tracks: Optional[Tensor] = None  # (mu, 3)
     _points: Optional[Tensor] = None  # (mu, 3)
     _theta: Optional[Tensor] = None  # (mu)
     _theta_xy: Optional[Tensor] = None  # (mu)
-    _angular_error: Optional[None] = None  # (mu)
+    _angular_error: Optional[Tensor] = None  # (mu)
     _angular_res: Optional[float] = None
+    _E: Optional[Tensor] = None  # (mu)
 
     _vars_to_save = [
         "tracks",
         "points",
         "angular_res",
         "E",
+        "label",
+        "type",
     ]
 
     def __init__(
         self,
-        hits: Hits,
         label: str,
+        hits: Optional[Hits] = None,
         output_dir: Optional[str] = None,
+        tracks_hdf5: Optional[str] = None,
+        type: str = "absorption",
     ) -> None:
         r"""
         Initializes the Tracking object.
+
+        The instanciation can be done in 2 ways:
+        - Provide `hits`. The tracks will be computed and saved as hdf5 files in `output_dir`.
+        - Provide `tracks_hdf5`. The tracking featres will be loaded from `tracks_hdf5`.
 
         Args:
             hits (Hits): An instance of the Hits class.
@@ -43,21 +67,34 @@ class Tracking(AbsSave):
             either 'above' or 'below'
             output_dir (str): The name of the directory where to save the Tracking attributes
             in _vars_to_save.
+            tracks_hdf5 (str): The path to the hdf5 file where a Tracking instance was saved.
+            type (str): The type of measurement campaign. Either absorption or freesky.
         """
+
+        if label in ["above", "below"]:
+            self._label = label
+        else:
+            raise ValueError("Provide either 'above' or 'below' as `label` argument.")
+
+        if type in ["absorption", "freesky"]:
+            self._type = type
+        else:
+            raise ValueError(
+                "Provide either 'absorption' or 'freesky' as 'type' argument."
+            )
 
         super().__init__(output_dir)
 
-        self.hits = hits
-        if label in ["above", "below"]:
-            self.label = label
-        else:
-            raise ValueError("Provide either 'above' or 'below' as label")
+        if (hits is not None) & (tracks_hdf5 is None):
+            self.hits = hits
 
-        self.save_attr(
-            attributes=self._vars_to_save,
-            directory=self.output_dir,
-            filename="tracks_" + self.label,
-        )
+            self.save_attr(
+                attributes=self._vars_to_save,
+                directory=self.output_dir,
+                filename="tracks_" + self.label + "_" + self.type,
+            )
+        elif tracks_hdf5 is not None:
+            self.load_attr(attributes=self._vars_to_save, filename=tracks_hdf5)
 
     @staticmethod
     def get_tracks_points_from_hits(hits: Tensor) -> Tuple[Tensor, Tensor]:
@@ -154,7 +191,7 @@ class Tracking(AbsSave):
             (Tensor): angular error with size (mu).
         """
 
-        gen_tracks, _ = self.get_tracks_points_from_hits(hits=self.hits.gen_hits)
+        gen_tracks, _ = self.get_tracks_points_from_hits(hits=self.hits.gen_hits)  # type: ignore
         gen_theta = self.get_theta_from_tracks(tracks=gen_tracks)
         return gen_theta - reco_theta
 
@@ -201,6 +238,33 @@ class Tracking(AbsSave):
 
         plt.show()
 
+    def _reset_vars(self) -> None:
+        r"""
+        Reset attributes to None.
+        """
+        self._theta = None  # (mu)
+        self._theta_xy = None  # (2, mu)
+        self._dtheta = None  # (mu)
+
+    def _filter_muons(self, mask: Tensor) -> None:
+        r"""
+        Remove muons specified as False in `mask`.
+
+        Args:
+            - mask (Boolean tensor) Muons with False elements will be removed.
+        """
+
+        # Set attributes without setter method to None
+        self._reset_vars()
+
+        n_muons = self.tracks.size()[0]
+        # Loop over class attributes and apply the mask is Tensor
+        for var in vars(self).keys():
+            data = getattr(self, var)
+            if isinstance(data, Tensor):
+                if data.size()[0] == n_muons:
+                    setattr(self, var, data[mask])
+
     @property
     def tracks(self) -> Tensor:
         r"""
@@ -208,9 +272,13 @@ class Tracking(AbsSave):
         """
         if self._tracks is None:
             self._tracks, self._points = self.get_tracks_points_from_hits(
-                hits=self.hits.reco_hits
+                hits=self.hits.reco_hits  # type: ignore
             )
         return self._tracks
+
+    @tracks.setter
+    def tracks(self, value: Tensor) -> None:
+        self._tracks = value
 
     @property
     def points(self) -> Tensor:
@@ -219,9 +287,13 @@ class Tracking(AbsSave):
         """
         if self._points is None:
             self._tracks, self._points = self.get_tracks_points_from_hits(
-                hits=self.hits.reco_hits
+                hits=self.hits.reco_hits  # type: ignore
             )
         return self._points
+
+    @points.setter
+    def points(self, value: Tensor) -> None:
+        self._points = value
 
     @property
     def theta_xy(self) -> Tensor:
@@ -245,7 +317,13 @@ class Tracking(AbsSave):
     @property
     def E(self) -> Tensor:
         r"""The muons' energy."""
-        return self.hits.E
+        if self._E is None:
+            self._E = self.hits.E  # type: ignore
+        return self._E
+
+    @E.setter
+    def E(self, value: Tensor) -> None:
+        self._E = value
 
     @property
     def n_mu(self) -> int:
@@ -260,7 +338,7 @@ class Tracking(AbsSave):
         The angular error between the generated and reconstructed tracks.
         """
         if self._angular_error is None:
-            if self.hits.spatial_res is None:
+            if self.hits.spatial_res is None:  # type: ignore
                 self._angular_error = torch.zeros_like(self.theta)
             else:
                 self._angular_error = self.get_angular_error(self.theta)
@@ -275,6 +353,26 @@ class Tracking(AbsSave):
         if self._angular_res is None:
             self._angular_res = self.angular_error.std().item()
         return self._angular_res
+
+    @angular_res.setter
+    def angular_res(self, value: Tensor) -> None:
+        self._angular_res = value
+
+    @property
+    def label(self) -> str:
+        return self._label
+
+    @label.setter
+    def label(self, value: str) -> None:
+        self._label = value
+
+    @property
+    def type(self) -> str:
+        return self._type
+
+    @type.setter
+    def type(self, value: str) -> None:
+        self._type = value
 
 
 class TrackingMST(AbsSave):
