@@ -3,6 +3,7 @@ from typing import List, Optional
 from torch import Tensor
 import numpy as np
 import h5py
+import os
 
 muograph_path = str(Path(__file__).parent.parent.parent)
 default_output_dir = muograph_path + "/output/"
@@ -62,6 +63,8 @@ class AbsSave:
                     f.create_dataset(attr, data=value.numpy())
                 elif isinstance(value, (np.ndarray, float)):
                     f.create_dataset(attr, data=value)
+                elif isinstance(value, str):
+                    f.create_dataset(attr, data=np.string_(value))
 
         f.close()
         print("Class attributes saved at {}".format(directory / filename))
@@ -91,5 +94,28 @@ class AbsSave:
                     setattr(self, attr, data[()])
                 elif type(data[:]) is np.ndarray:
                     setattr(self, attr, Tensor(data[:]))
+                elif isinstance(data[()], bytes):  # Strings are usually stored as bytes
+                    setattr(self, attr, data[()].decode("utf-8"))
+
         f.close()
         print("\nTracking attributes loaded from {}".format(filename))
+
+    @staticmethod
+    def files_in_dir(dir: str, files: List[str]) -> bool:
+        r"""Returns `True` if the the directory `dir` contains the files listed in `files`.
+
+        Args:
+            dir (str): Path to the directory.
+            files (List[str]): List of file names.
+
+        Returns:
+            bool
+        """
+
+        # Get file names from the input directory
+        files = [f for f in os.listdir(dir) if os.path.isfile(dir + f)]
+
+        # Make sure the directory contains the required files
+        all_exist = all(any(file == name for file in files) for name in files)
+
+        return all_exist
