@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from torch import Tensor
-from typing import Optional
+from typing import Optional, Tuple
 
 
 class Hits:
@@ -179,3 +179,21 @@ class Hits:
                 gen_hits=self.gen_hits, spatial_res=self.spatial_res
             )
         return self._reco_hits
+
+
+def get_hits_from_csv(csv_file: str, plane_labels: Tuple[int, ...] = (0, 1, 2)) -> Hits:
+    if Path(csv_file).is_file():
+        if csv_file.endswith(".csv"):
+            # read csv file
+            df = pd.read_csv(csv_file)
+
+            # Only retrieve hits with corresponding plane number
+            cols = [
+                col for col in df.columns for label in plane_labels if str(label) in col
+            ] + ["E"]
+
+            return Hits(df=df[cols])
+        else:
+            raise ValueError("Only csv files are supported.")
+    else:
+        raise ValueError("{} file does not exists!".format(csv_file))
