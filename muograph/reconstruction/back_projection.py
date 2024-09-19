@@ -339,7 +339,7 @@ class BackProjection(AbsSave):
         voi: Volume, theta_xy: Tensor, points: Tensor
     ) -> List[torch.Tensor]:
         r"""
-        For each muon track, find the associated triggered voxels. The coimputation is done in 4 steps:
+        For each muon track, find the associated triggered voxels. The computation is done in 4 steps:
          - Compute muon position when entering/exiting the `Volume`, based on the fitted muon tracks.
          - Compute discretized tracks.
          - Find the sub volumes traversed by the tracks.
@@ -351,7 +351,7 @@ class BackProjection(AbsSave):
             - points (`Tensor`) Points along the fited muon track, with size (mu, 3).
 
         Returns:
-            - triggererd_voxels (List[Tensor]) List containing the indices of triggered voxels as a Tensor with size (mu, n_triggered_vox, 3).
+            - triggererd_voxels (`List[Tensor]`) List containing the indices of triggered voxels as a Tensor with size (mu, n_triggered_vox, 3).
         """
 
         xyz_out_voi = BackProjection._compute_xyz_out(
@@ -382,7 +382,7 @@ class BackProjection(AbsSave):
         Computes the density predictions per voxel.
 
         Returns:
-            vox_density_pred (Tensor): voxelwise density predictions
+            - vox_density_pred (`Tensor`) voxelwise density predictions.
         """
 
         score_list: List[List[List[List]]] = [
@@ -438,8 +438,9 @@ class BackProjection(AbsSave):
             - xyz_muon_count_uncs (Tensor) The uncertainty on the voxel-wise xyz muon counts, with size (Vx, Vy, Vz) where
             Vi the number of voxels along the i axis.
         """
+        print("xyz muon count uncertainty computation NOT IMPLEMENTED YET!")
 
-        return torch.sqrt(xyz_muon_count)
+        return 1 / torch.sqrt(xyz_muon_count)
 
     @property
     def voxel_xyz_muon_count(self) -> Tensor:
