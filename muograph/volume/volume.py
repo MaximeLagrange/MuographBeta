@@ -22,9 +22,9 @@ class Volume:
         Initialize the Volume object.
 
         Args:
-            position (Tuple[float, float, float]): Position of the center of the volume in xyz.
-            dimension (Tuple[float, float, float]): The xyz span of the volume.
-            voxel_width (float): The size of the voxel. The user must ensure that
+            position (`Tuple[float, float, float]`): Position of the center of the volume in xyz.
+            dimension (`Tuple[float, float, float]`): The xyz span of the volume.
+            voxel_width (`float`): The size of the voxel. The user must ensure that
             the dimension of the volume can be divided by the voxel width.
         """
         self.xyz = torch.tensor(position, dtype=torch.float64)
@@ -46,11 +46,11 @@ class Volume:
         Calculate the number of voxels along each axis.
 
         Args:
-            vox_width (float): The size of the voxel.
-            dxyz (Tensor): The dimensions of the volume.
+            vox_width (`float`): The size of the voxel.
+            dxyz (`Tensor`): The dimensions of the volume.
 
         Returns:
-            Tuple[int, int, int]: The number of voxels along the x, y, z dimensions.
+            x (`Tuple[int, int, int]`): The number of voxels along the x, y, z dimensions.
 
         Raises:
             ValueError: If the dimensions are not divisible by the voxel width.
@@ -78,13 +78,13 @@ class Volume:
         Generate the voxel centers and edges for the 3D grid.
 
         Args:
-            xyz_min (Tensor): The minimum xyz coordinates of the volume.
-            xyz_max (Tensor): The maximum xyz coordinates of the volume.
-            vox_width (float): The size of the voxel.
-            n_vox_xyz (Tuple[int, int, int]): The number of voxels along each dimension.
+            xyz_min (`Tensor`): The minimum xyz coordinates of the volume.
+            xyz_max (`Tensor`): The maximum xyz coordinates of the volume.
+            vox_width (`float`): The size of the voxel.
+            n_vox_xyz (`Tuple[int, int, int]`): The number of voxels along each dimension.
 
         Returns:
-            Tuple[Tensor, Tensor]: Voxel centers and voxel edges as tensors.
+            x (`Tuple[Tensor, Tensor]`): Voxel centers and voxel edges as tensors.
         """
         # Compute voxel centers for each axis
         xs = torch.linspace(
@@ -117,7 +117,7 @@ class Volume:
         Get the number of voxels along the x, y, z dimensions.
 
         Returns:
-            Tuple[int, int, int]: The number of voxels along the x, y, z dimensions.
+            x (`Tuple[int, int, int]`): The number of voxels along the x, y, z dimensions.
         """
         if self._n_vox_xyz is None:
             self._n_vox_xyz = self.compute_n_voxel(
@@ -131,7 +131,7 @@ class Volume:
         Get the xyz position of the center of each voxel.
 
         Returns:
-            Tensor: Tensor with size (nx, ny, nz, 3) representing voxel centers.
+            voxel_centers (Tensor): Voxel centers with size (nx, ny, nz, 3).
         """
         if self._voxel_centers is None:
             self._voxel_centers, self._voxel_edges = self.generate_voxels(
@@ -148,7 +148,7 @@ class Volume:
         Get the xyz position of the front-bottom-left and back-upper-right corner of each voxel.
 
         Returns:
-            Tensor: Tensor with size (nx, ny, nz, 2, 3) representing voxel edges.
+            voxel_edges (`Tensor`): Voxel edges with size (nx, ny, nz, 2, 3).
         """
         if self._voxel_edges is None:
             self._voxel_centers, self._voxel_edges = self.generate_voxels(
