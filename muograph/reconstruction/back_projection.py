@@ -2,9 +2,16 @@ from utils.save import AbsSave
 from volume.volume import Volume
 from tracking.tracking import Tracking
 from reconstruction.asr import ASR
+from plotting.voxel import VoxelPlotting
+from plotting.plotting import plot_2d_vector
+from plotting.params import titlesize
 
+import math
+import numpy as np
+from copy import deepcopy
 from typing import Optional, Tuple, List, Dict, Union
 from functools import partial
+import matplotlib.pyplot as plt
 import torch
 from torch import Tensor
 from fastprogress import progress_bar
@@ -12,7 +19,7 @@ from fastprogress import progress_bar
 value_type = Union[partial, Tuple[float, float]]
 
 
-class BackProjection(AbsSave):
+class BackProjection(AbsSave, VoxelPlotting):
     r"""
     Class for computing voxel-wise muon counts through a voxelized volume.
 
@@ -40,6 +47,10 @@ class BackProjection(AbsSave):
         "energy_range": (0.0, 1000000.0),  #
         "score_method": partial(torch.sum),
     }
+
+    # Muon position entering / exiting volume
+    _xyz_in_out: Optional[Tensor] = None
+    _xyz_entry_point: Optional[Tensor] = None
 
     # Triggered voxels
     _triggered_voxels: Optional[List[Tensor]] = None
@@ -75,7 +86,8 @@ class BackProjection(AbsSave):
             before running the algorithm.
         """
 
-        super().__init__(output_dir=output_dir)
+        AbsSave.__init__(self, output_dir=output_dir)
+        VoxelPlotting.__init__(self, voi=voi)
 
         # Set volume of interest
         self.voi = voi
@@ -156,7 +168,7 @@ class BackProjection(AbsSave):
             - theta_xy (`Tensor`) The muon projected zenith angle in the XZ and YZ plane, with size (2, mu).
 
         Returns:
-             - xyz_in_voi (`Tensor`): the muon position when entering/exiting the VOI, with size (3,2,n_event).
+             - xyz_out_voi (`Tensor`): the muon position when entering/exiting the VOI, with size (n_event,2,3).
         """
 
         xyz_out_voi = torch.zeros((points.size()[0], 2, 3))
@@ -442,6 +454,166 @@ class BackProjection(AbsSave):
 
         return 1 / torch.sqrt(xyz_muon_count)
 
+    @staticmethod
+    def _compute_muon_entry_point(
+        xyz_in_out: Tensor,
+        theta_xy: Tensor,
+        voi: Volume,
+    ) -> Tensor:
+        # Distance between muon xy pos at the bottom of the voi
+        #  and the xy edge of the voi
+        dx = voi.xyz_min[0] - xyz_in_out[:, 0, 0]
+        dy = voi.xyz_min[1] - xyz_in_out[:, 0, 1]
+
+        # Distance between bottom of the voi and muon z pos when entering voi
+        dz = torch.tan(math.pi / 2 - theta_xy[0]) * dx
+
+        xyz_enters_voi = deepcopy(xyz_in_out[:, 0])
+
+        # Muon entering from left side
+        xyz_enters_voi[:, 0] = torch.where(
+            dx > 0, xyz_in_out[:, 0, 0] + dx, xyz_enters_voi[:, 0]
+        )
+        xyz_enters_voi[:, 1] = torch.where(
+            dy > 0, xyz_in_out[:, 0, 1] + dy, xyz_enters_voi[:, 1]
+        )
+
+        # Muons entering from the right side
+        xyz_enters_voi[:, 0] = torch.where(
+            dx < -voi.dxyz[0],
+            xyz_in_out[:, 0, 0] - (torch.abs(xyz_in_out[:, 0, 0] - voi.xyz_max[0])),
+            xyz_enters_voi[:, 0],
+        )
+
+        xyz_enters_voi[:, 1] = torch.where(
+            dy < -voi.dxyz[1],
+            xyz_in_out[:, 0, 1] - (torch.abs(xyz_in_out[:, 0, 1] - voi.xyz_max[1])),
+            xyz_enters_voi[:, 1],
+        )
+        mask_xy_out = (dx > 0) | (dy > 0) | (dx < -voi.dxyz[0]) | (dy < -voi.dxyz[1])
+
+        xyz_enters_voi[:, 2] = torch.where(
+            mask_xy_out, xyz_in_out[:, 0, 2] + dz, xyz_enters_voi[:, 2]
+        )
+
+        return xyz_enters_voi
+
+    def plot_event_display(
+        self,
+        dim: int = 2,
+        event: Optional[int] = None,
+        filename: Optional[str] = None,
+    ) -> None:
+        # Compute figure size based on XY ratio
+        figsize = self.get_fig_size(
+            voi=self.voi,
+            nrows=1,
+            ncols=1,
+            dims=np.delete([0, 1, 2], dim),
+            scale=6,
+        )
+
+        fig, ax = plt.subplots(figsize=figsize)
+
+        # Plot voxel grid
+        self.plot_voxel_grid(dim=dim, voi=self.voi, ax=ax)
+
+        # If event is not provided, pick a random event
+        event = np.random.randint(self.tracks.n_mu) if event is None else event
+
+        # Indices of the triggered voxels
+        voxels = self.triggered_voxels[event]
+        n_triggered_voxel = len(voxels)
+
+        # Compute triggered voxels position
+        if n_triggered_voxel > 0:
+            ixs, iys, izs = voxels[:, 0], voxels[:, 1], voxels[:, 2]
+
+            # positions of the triggered voxels
+            vx = [self.voi.voxel_centers[ix, 0, 0, 0].item() for ix in ixs]
+            vy = [self.voi.voxel_centers[0, iy, 0, 1].item() for iy in iys]
+            vz = [self.voi.voxel_centers[0, 0, iz, 2].item() for iz in izs]
+        else:
+            vx, vy, vz = None, None, None
+
+        mapping = {
+            2: {"vox_x": vx, "vox_y": vy, "projection": "XY"},
+            1: {"vox_x": vx, "vox_y": vz, "projection": "XZ"},
+            0: {"vox_x": vy, "vox_y": vz, "projection": "YZ"},
+        }
+
+        # Plot voxel position
+        ax.scatter(
+            mapping[dim]["vox_x"],
+            mapping[dim]["vox_y"],
+            color="red",
+            marker=".",
+            alpha=0.5,
+        )
+
+        # Muon's position entering the voi
+        point_2D = np.delete(self.xyz_entry_point[event].numpy(), dim)
+
+        track_2D = np.delete(self.tracks.tracks[event].numpy(), dim)
+        track_2D_norm = -track_2D / np.linalg.norm(track_2D)
+
+        # Plot muon direction
+        plot_2d_vector(
+            ax,
+            vector=track_2D_norm,
+            origin=point_2D,
+            scale=1 / (self.voi.vox_width * 5),
+        )
+
+        # Plot muon position entering volume
+        ax.scatter(
+            point_2D[0],
+            point_2D[1],
+            color="green",
+            marker="x",
+            s=200,
+            label=r"$\mu$ enters volume",
+        )
+
+        # Plot triggered voxels
+        ax.scatter(
+            mapping[dim]["vox_x"],
+            mapping[dim]["vox_y"],
+            color="red",
+            marker=".",
+            alpha=0.5,
+            label="triggered voxels",
+        )
+
+        # Muon's direction legend
+        ax.scatter(
+            [],
+            [],
+            marker=r"$\longrightarrow$",
+            c="green",
+            s=120,
+            label=r"$\mu$ direction",
+        )
+
+        if n_triggered_voxel > 0:
+            ax.legend()
+            title = f"Muon event display in {mapping[dim]['projection']} for event {event}\n{n_triggered_voxel} triggered voxels"
+        else:
+            title = f"Muon event display in {mapping[dim]['projection']} for event {event}\nno triggered voxels"
+
+        # Plot title
+        ax.set_title(
+            title,
+            fontsize=titlesize,
+            fontweight="bold",
+        )
+
+        # Save figure
+        if filename is not None:
+            plt.savefig(filename, bbox_inches="tight")
+
+        plt.show()
+
     @property
     def voxel_xyz_muon_count(self) -> Tensor:
         r"""
@@ -478,6 +650,22 @@ class BackProjection(AbsSave):
     @triggered_voxels.setter
     def triggered_voxels(self, value: List[Tensor]) -> None:
         self._triggered_voxels = value
+
+    @property
+    def xyz_in_out(self) -> Tensor:
+        if self._xyz_in_out is None:
+            self._xyz_in_out = self._compute_xyz_out(
+                self.voi, self.tracks.points, self.tracks.theta_xy
+            )
+        return self._xyz_in_out
+
+    @property
+    def xyz_entry_point(self) -> Tensor:
+        if self._xyz_entry_point is None:
+            self._xyz_entry_point = self._compute_muon_entry_point(
+                self.xyz_in_out, self.tracks.theta_xy, self.voi
+            )
+        return self._xyz_entry_point
 
     # Parameters
     @property
