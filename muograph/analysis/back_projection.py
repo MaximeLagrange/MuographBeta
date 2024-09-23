@@ -95,7 +95,6 @@ class BackProjectionAnalysis(AbsSave, VoxelPlotting):
 
             # If yes, instanciate `BackProjection` classes by loading the hdf5 files.
             if all_exist:
-                print("all exists")
                 (
                     self._back_proj_freesky,
                     self._back_proj_absorption,
