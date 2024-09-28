@@ -19,6 +19,8 @@ class BCA(POCA):
     _pred: Tensor = None  # (Nx, Ny, Nz)
     _normalized_pred: Tensor = None  # (Nx, Ny, Nz)
     _hit_per_voxel: Tensor = None  # (Nx, Ny, Nz)
+    _xyz_voxel_pred: Optional[Tensor] = None  # (Nx, Ny, Nz)
+    _recompute_preds: bool = True
 
     _bca_params: Dict[str, value_type] = {
         "n_max_per_vox": 10,
@@ -30,7 +32,7 @@ class BCA(POCA):
         "use_p": False,
     }
 
-    _vars_to_save = ["pred", "hit_per_voxel"]
+    _vars_to_save = ["xyz_voxel_pred", "hit_per_voxel"]
 
     def __init__(
         self,
@@ -346,18 +348,7 @@ class BCA(POCA):
         self.bca_poca_points = self.bca_poca_points[mask]
         self.bca_tracks._filter_muons(mask=mask)
 
-    def bca_reconstruction(
-        self,
-        save: bool = False,
-        plot: bool = True,
-        n_max_per_vox: Optional[int] = None,
-        score_method: Optional[partial] = None,
-        metric_method: Optional[partial] = None,
-        p_range: Optional[Tuple[int]] = None,
-        dtheta_range: Optional[Tuple[float]] = None,
-        use_p: Optional[bool] = None,
-        n_min_per_vox: Optional[int] = None,
-    ) -> None:
+    def get_bca_pred(self) -> Tuple[Tensor, Tensor]:
         """
         Run the BCA algorithm, as implemented in:
         A binned clustering algorithm to detect high-Z material using cosmic muons,
@@ -382,9 +373,6 @@ class BCA(POCA):
             - n_min_per_voxel:int, the min number of POCA point per voxel.
             If a voxel contains less than n_min_per_voxel, is final score will be 0.
         """
-
-        # Update bca parameters given the arguments
-        self.bca_params = locals()
 
         # Create output directory with BCA name
         self.dir_name = Path(str(self.output_dir) + "/" + self.bca_name + "/")
@@ -437,14 +425,13 @@ class BCA(POCA):
         )
 
         # compute fina scores
-        self._pred, self._hit_per_voxel = self.compute_final_scores(
+        pred, hit_per_voxel = self.compute_final_scores(
             score_list=self.score_list, score_method=self.bca_params["score_method"]  # type: ignore
         )
 
-        if save is True:
-            self.save_attr(
-                self._vars_to_save, directory=self.dir_name, filename="bca_results"
-            )
+        self._recompute_preds = False
+
+        return pred, hit_per_voxel
 
     def get_bca_name(
         self,
@@ -511,18 +498,24 @@ class BCA(POCA):
                 if value[key] is not None:
                     self._bca_params[key] = value[key]
 
+        self._recompute_preds = True
+
     @property
-    def pred(self) -> Tensor:
+    def xyz_voxel_pred(self) -> Tensor:
         r"""
         The scattering density predictions.
         """
-        return self._pred
+        if (self._xyz_voxel_pred is None) | (self._recompute_preds):
+            self._xyz_voxel_pred, self._hit_per_voxel = self.get_bca_pred()
+        return self._xyz_voxel_pred
 
     @property
     def hit_per_voxel(self) -> Tensor:
         r"""
         The number of poca points used for the predictions of each voxel.
         """
+        if (self._hit_per_voxel is None) | (self._recompute_preds):
+            self._xyz_voxel_pred, self._hit_per_voxel = self.get_bca_pred()
         return self._hit_per_voxel
 
     @property
@@ -530,4 +523,4 @@ class BCA(POCA):
         r"""
         The normalized scattering density predictions.
         """
-        return normalize(self.pred)
+        return normalize(self.xyz_voxel_pred)
