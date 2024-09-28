@@ -11,15 +11,17 @@ import h5py
 from utils.save import AbsSave
 from tracking.tracking import TrackingMST
 from volume.volume import Volume
+from plotting.voxel import VoxelPlotting
 from utils.tools import normalize
 
 value_type = Union[partial, Tuple[float, float], bool]
 
 
-class ASR(AbsSave):
-    _density_pred: Optional[Tensor] = None
+class ASR(AbsSave, VoxelPlotting):
+    _xyz_voxel_pred: Optional[Tensor] = None  # (Nx, Ny, Nz)
     _triggered_voxels: Optional[List[Tensor]] = None
-    _n_mu_per_vox: Optional[Tensor] = None
+    _n_mu_per_vox: Optional[Tensor] = None  # (Nx, Ny, Nz)
+    _recompute_preds = True
 
     _ars_params: Dict[str, value_type] = {
         "score_method": partial(np.quantile, q=0.5),
@@ -39,7 +41,9 @@ class ASR(AbsSave):
         output_dir: Optional[str] = None,
         triggered_vox_file: Optional[str] = None,
     ) -> None:
-        super().__init__(output_dir=output_dir)
+        AbsSave.__init__(self, output_dir=output_dir)
+        VoxelPlotting.__init__(self, voi=voi)
+
         self.voi = voi
         self.tracks = tracking
 
@@ -436,6 +440,8 @@ class ASR(AbsSave):
         if vox_density_preds.isnan().any():
             raise ValueError("Prediction contains NaN values")
 
+        self._recompute_preds = False
+
         if self.asr_params["use_p"]:  # type: ignore
             return torch.exp(vox_density_preds)
         else:
@@ -489,17 +495,16 @@ class ASR(AbsSave):
                 if value[key] is not None:
                     self._ars_params[key] = value[key]
 
+        self._recompute_preds = True
+
     @property
-    def density_pred(self) -> Tensor:
+    def xyz_voxel_pred(self) -> Tensor:
         r"""
         The scattering density predictions.
         """
-        self._density_pred = self.get_density_pred()
-        return self._density_pred
-
-    @density_pred.setter
-    def density_pred(self, value: Tensor) -> None:
-        self._density_pred = value
+        if (self._xyz_voxel_pred is None) | (self._recompute_preds):
+            self._xyz_voxel_pred = self.get_density_pred()
+        return self._xyz_voxel_pred
 
     @property
     def density_pred_norm(self) -> Tensor:
