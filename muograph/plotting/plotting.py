@@ -1,6 +1,9 @@
+import matplotlib
 import matplotlib.pyplot as plt
 from torch import Tensor
 from typing import Tuple, Optional
+import numpy as np
+
 from volume.volume import Volume
 from plotting.params import d_unit
 
@@ -210,3 +213,31 @@ def plot_voxel_pred(pred: Tensor, dim: int, plot_name: Optional[str] = None) -> 
         plt.savefig(plot_name)
         plt.tight_layout()
     plt.show()
+
+
+def plot_2d_vector(
+    ax: matplotlib.axes._axes.Axes,
+    vector: np.ndarray,
+    origin: np.ndarray,
+    scale: float = 1.0,
+) -> None:
+    """
+    Plots a 2D vector starting from the origin.
+
+    Args:
+        - ax (matplotlib.axes._axes.Axes) The axes to plot on.
+        - vector (np.ndarray): A 2D vector [x, y].
+        - origin (np.ndarray): The starting point of the vector.
+    """
+    ax.quiver(
+        *origin.tolist(),
+        vector[0],
+        vector[1],
+        angles="xy",
+        scale_units="xy",
+        alpha=0.5,
+        scale=scale,
+        color="green",
+    )
+
+    ax.set_aspect("equal")

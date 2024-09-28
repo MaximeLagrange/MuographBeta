@@ -12,4 +12,6 @@ dependencies:
   - scipy=1.7.0
   - scikit-spatial
   - joblib
-  
+  - numba
+  # - eigen  # Eigen for linear algebra operations
+  # - tbb  # Intel's Threading Building Blocks for parallelism
