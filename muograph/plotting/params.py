@@ -1,4 +1,3 @@
-import math
 from typing import Tuple
 
 # Number of bins for histograms
@@ -21,7 +20,7 @@ font = {"weight": "normal", "size": fontsize, "family": "Arial"}
 cmap: str = "jet"
 
 # Histogram XY ratio
-xy_golden_ratio: float = (1 + math.sqrt(5)) / 2
+xy_golden_ratio: float = 1.4
 hist_scale = 4.5
 hist_figsize: Tuple[float, float] = (xy_golden_ratio * hist_scale, 1 * hist_scale)
 
