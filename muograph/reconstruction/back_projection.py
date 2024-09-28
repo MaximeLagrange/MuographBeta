@@ -435,6 +435,8 @@ class BackProjection(AbsSave, VoxelPlotting):
         if vox_density_preds.isnan().any():
             raise ValueError("Prediction contains NaN values")
 
+        torch.where(vox_density_preds == 0, 1.0, vox_density_preds)
+
         return vox_density_preds
 
     @staticmethod
