@@ -8,6 +8,7 @@ import numpy as np
 from utils.save import AbsSave
 from volume.volume import Volume
 from tracking.tracking import TrackingMST
+from plotting.voxel import VoxelPlotting
 
 
 def are_parallel(v1: Tensor, v2: Tensor, tol: float = 1e-5) -> bool:
@@ -15,7 +16,7 @@ def are_parallel(v1: Tensor, v2: Tensor, tol: float = 1e-5) -> bool:
     return torch.all(torch.abs(cross_prod) < tol)
 
 
-class POCA(AbsSave):
+class POCA(AbsSave, VoxelPlotting):
     r"""
     A class for Point Of Closest Approach computation in the context of a Muon Scattering Tomography analysis.
     """
@@ -58,7 +59,8 @@ class POCA(AbsSave):
             - output_dir (Optional[str]): Path to a directory where to save POCA attributes
             in a hdf5 file.
         """
-        super().__init__(output_dir)
+        AbsSave.__init__(self, output_dir)
+        VoxelPlotting.__init__(self, voi)
 
         if tracking is None and poca_file is None:
             raise ValueError("Provide either poca.hdf5 file of TrackingMST instance.")
