@@ -4,10 +4,11 @@ from typing import Tuple, Optional
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import matplotlib
 
 from utils.save import AbsSave
 from hits.hits import Hits
-from plotting.params import n_bins, alpha
+from plotting.params import n_bins, alpha, font, titlesize, hist_figsize, labelsize
 
 
 class Tracking(AbsSave):
@@ -52,7 +53,7 @@ class Tracking(AbsSave):
         hits: Optional[Hits] = None,
         output_dir: Optional[str] = None,
         tracks_hdf5: Optional[str] = None,
-        type: str = "absorption",
+        type: Optional[str] = None,
     ) -> None:
         r"""
         Initializes the Tracking object.
@@ -78,6 +79,8 @@ class Tracking(AbsSave):
 
         if type in ["absorption", "freesky"]:
             self._type = type
+        elif type is None:
+            self._type = ""
         else:
             raise ValueError(
                 "Provide either 'absorption' or 'freesky' as 'type' argument."
@@ -101,7 +104,8 @@ class Tracking(AbsSave):
         r"""
         Extract tracks and points from hits data.
 
-        Args:
+        Args:import numba
+
             - hits (Tensor): The hits data with shape (3, n_plane, mu).
 
         Returns:
@@ -202,11 +206,16 @@ class Tracking(AbsSave):
             figname (Tensor): If provided, save the figure at self.output / figname.
         """
 
-        fig, axs = plt.subplots(ncols=2, figsize=(10, 4))
+        # Set default font
+        matplotlib.rc("font", **font)
+
+        fig, axs = plt.subplots(ncols=2, figsize=(2 * hist_figsize[0], hist_figsize[1]))
 
         # Fig title
         fig.suptitle(
-            f"Batch of {self.tracks.size()[0]} muons", fontsize=15, fontweight="bold"
+            f"Batch of {self.tracks.size()[0]} muons",
+            fontsize=titlesize,
+            fontweight="bold",
         )
 
         # Zenith angle
@@ -216,7 +225,7 @@ class Tracking(AbsSave):
             label=f"mean = {self.theta.mean().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
-        axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]")
+        axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]", fontweight="bold")
 
         # Energy
         axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
@@ -225,17 +234,76 @@ class Tracking(AbsSave):
             label=f"mean = {self.E.mean().numpy():.3E}",
             color="red",
         )
-        axs[1].set_xlabel(r" Energy [MeV]")
+        axs[1].set_xlabel(r" Energy [MeV]", fontweight="bold")
 
         for ax in axs:
-            ax.grid("on")
-            ax.set_ylabel("Frequency [a.u]")
+            ax.grid(visible=True, color="grey", linestyle="--", linewidth=0.5)
+            ax.tick_params(axis="both", labelsize=labelsize)
+            ax.set_ylabel("Frequency [a.u]", fontweight="bold")
             ax.legend()
         plt.tight_layout()
 
         if figname is not None:
             plt.savefig(self.output_dir / figname, bbox_inches="tight")
 
+        plt.show()
+
+    def plot_angular_error(self, filename: Optional[str] = None) -> None:
+        # Set default font
+        matplotlib.rc("font", **font)
+
+        fig, ax = plt.subplots(figsize=(hist_figsize))
+
+        # Fig title
+        fig.suptitle(
+            f"Batch of {self.tracks.size()[0]} muons\nAngular resolution = {self.angular_error.std().numpy() * 180 / math.pi:.2f} deg",
+            fontsize=titlesize,
+            fontweight="bold",
+        )
+
+        # Projected zenith angle error
+        ax.hist(self.angular_error.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+
+        # Mean angular error
+        ax.axvline(
+            x=self.angular_error.mean().numpy() * 180 / math.pi,
+            label=f"mean = {self.angular_error.mean().numpy() * 180 / math.pi:.1f}",
+            color="red",
+        )
+
+        range = (
+            torch.min(self.angular_error).item() * 180 / math.pi,
+            torch.max(self.angular_error).item() * 180 / math.pi,
+        )
+
+        # Highlight 1 sigma region
+        std = self.angular_error.std().numpy()
+        mean = self.angular_error.mean().numpy()
+
+        mask_1sigma = (self.angular_error > mean - std) & (
+            self.angular_error < mean + std
+        )
+        ax.hist(
+            self.angular_error[mask_1sigma].numpy() * 180 / math.pi,
+            bins=n_bins,
+            alpha=0.3,
+            range=range,
+            color="green",
+            label=r"$\sigma$" + f" = {std * 180 / math.pi:.2f}",
+        )
+
+        # Grid
+        ax.grid(visible=True, color="grey", linestyle="--", linewidth=0.5)
+
+        # Axis labels
+        ax.set_ylabel("Frequency [a.u]", fontweight="bold")
+        ax.set_xlabel(r" Angular error $\delta\theta$ [deg]", fontweight="bold")
+        ax.tick_params(axis="both", labelsize=labelsize)
+
+        ax.legend()
+        plt.tight_layout()
+        if filename is not None:
+            plt.savefig(filename, bbox_inches="tight")
         plt.show()
 
     def _reset_vars(self) -> None:
@@ -264,6 +332,40 @@ class Tracking(AbsSave):
             if isinstance(data, Tensor):
                 if data.size()[0] == n_muons:
                     setattr(self, var, data[mask])
+
+    @staticmethod
+    def test_my_ass(a: float, b: float, N: float) -> float:
+        """
+        Creates an instance of MyClass from the C++ code, calls the run() method,
+        and returns the result.
+
+        :param a: First double value to pass to MyClass
+        :param b: Second double value to pass to MyClass
+        :param N: Integer value to pass to MyClass
+        :return: Result of calling the run() method on the MyClass object
+        """
+
+        import sys
+        import os
+
+        # Add the directory where mylib.so (compiled extension) is located to the Python path
+        sys.path.append(
+            os.path.abspath(
+                "/home/geant/Desktop/TASKS/Muograph/MuographBeta/muograph/test"
+            )
+        )
+
+        # Now you can import the compiled C++ module
+        import mylib
+
+        # Create an instance of the MyClass class
+        obj = mylib.MyClass(a, b, N)
+
+        # Call the run() method
+        result = obj.run()
+
+        # Return the result
+        return result
 
     @property
     def tracks(self) -> Tensor:
@@ -503,6 +605,74 @@ class TrackingMST(AbsSave):
         self._theta_xy_in = None  # (2, mu)
         self._theta_xy_out = None  # (2, mu)
         self._dtheta = None  # (mu)
+
+    def plot_muon_features(self, figname: Optional[str] = None) -> None:
+        r"""
+        Plot the zenith angle and energy of the reconstructed tracks.
+        Args:
+            figname (Tensor): If provided, save the figure at self.output / figname.
+        """
+        # Set default font
+        matplotlib.rc("font", **font)
+
+        fig, axs = plt.subplots(
+            ncols=2, nrows=2, figsize=(2 * hist_figsize[0], 2 * hist_figsize[1])
+        )
+        axs = axs.ravel()
+
+        # Fig title
+        fig.suptitle(
+            f"Batch of {self.n_mu} muons", fontsize=titlesize, fontweight="bold"
+        )
+
+        # Zenith angle
+        axs[0].hist(self.theta_in.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        axs[0].axvline(
+            x=self.theta_in.mean().numpy() * 180 / math.pi,
+            label=f"mean = {self.theta_in.mean().numpy() * 180 / math.pi:.1f}",
+            color="red",
+        )
+        axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]", fontweight="bold")
+
+        # Energy
+        axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
+        axs[1].axvline(
+            x=self.E.mean().numpy(),
+            label=f"mean = {self.E.mean().numpy():.3E}",
+            color="red",
+        )
+        axs[1].set_xlabel(r" Energy [MeV]", fontweight="bold")
+
+        # Scattering angle
+        axs[2].hist(self.dtheta.numpy() * 180, bins=n_bins, alpha=alpha, log=True)
+        axs[2].axvline(
+            x=self.dtheta.mean().numpy() * 180,
+            label=f"mean = {self.dtheta.mean().numpy() * 180:.3E}",
+            color="red",
+        )
+        axs[2].set_xlabel(r" Scattering angle $\delta\theta$ [deg]", fontweight="bold")
+
+        for ax in axs[:-1]:
+            ax.grid(visible=True, color="grey", linestyle="--", linewidth=0.5)
+            ax.set_ylabel("Frequency [a.u]", fontweight="bold")
+            ax.tick_params(axis="both", labelsize=labelsize)
+            ax.legend()
+
+        axs[-1].remove()
+        axs[-1] = None
+
+        plt.tight_layout()
+
+        if figname is not None:
+            plt.savefig(self.output_dir / figname, bbox_inches="tight")
+
+        plt.show()
+
+    # Number of muons
+    @property
+    def n_mu(self) -> int:
+        """The number of muons."""
+        return self.dtheta.size()[0]
 
     # Energy
     @property
