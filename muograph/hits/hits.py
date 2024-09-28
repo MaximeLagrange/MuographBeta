@@ -9,17 +9,19 @@ class Hits:
     r"""
     A class to handle and process muon hit data from a CSV file.
     """
-
+    # Muon hits
     _gen_hits = None  # (3, n_plane, mu)
-    _reco_hits = None
+    _reco_hits = None  # (3, n_plane, mu)
 
-    _E = None
+    # Muon energy
+    _E = None  # (mu)
 
     def __init__(
         self,
         csv_filename: Optional[Path] = None,
         df: Optional[pd.DataFrame] = None,
         spatial_res: Optional[Tensor] = None,
+        energy_range: Optional[Tuple[float, float]] = None,
     ) -> None:
         r"""
         Initializes the Hits object with the path to the CSV file or a pd.DataFrame.
@@ -30,6 +32,9 @@ class Hits:
             df (pd.DataFrame): The CSV file containing
             hit and energy data.
         """
+        self.spatial_res = spatial_res
+        self.energy_range = energy_range
+
         if csv_filename is not None and df is not None:
             raise ValueError("Provide either csv_filename or df, not both.")
 
@@ -40,7 +45,11 @@ class Hits:
         else:
             raise ValueError("Either csv_filename or df must be provided.")
 
-        self.spatial_res = spatial_res
+        if self.energy_range is not None:
+            energy_mask = (self.E > self.energy_range[0]) & (
+                self.E < self.energy_range[-1]
+            )
+            self._filter_events(energy_mask)
 
     @staticmethod
     def get_data_frame_from_csv(csv_filename: Path) -> pd.DataFrame:
@@ -144,6 +153,18 @@ class Hits:
 
         return reco_hits
 
+    def _filter_events(self, mask: Tensor) -> None:
+        r"""
+        Remove muons specified as False in `mask`.
+
+        Args:
+            mask: (N,) Boolean tensor. Muons with False elements will be removed.
+        """
+
+        self.reco_hits = self.reco_hits[:, :, mask]
+        self.gen_hits = self.gen_hits[:, :, mask]
+        self.E = self.E[mask]
+
     @property
     def E(self) -> Tensor:
         r"""
@@ -158,6 +179,10 @@ class Hits:
                 self._E = torch.zeros(self.reco_hits.size()[-1])  # Setting _E to zero
         return self._E
 
+    @E.setter
+    def E(self, value: Tensor) -> None:
+        self._E = value
+
     @property
     def gen_hits(self) -> Tensor:
         r"""
@@ -166,6 +191,10 @@ class Hits:
         if self._gen_hits is None:
             self._gen_hits = self.get_hits_from_df(self._df)
         return self._gen_hits
+
+    @gen_hits.setter
+    def gen_hits(self, value: Tensor) -> None:
+        self._gen_hits = value
 
     @property
     def reco_hits(self) -> Tensor:
@@ -180,8 +209,17 @@ class Hits:
             )
         return self._reco_hits
 
+    @reco_hits.setter
+    def reco_hits(self, value: Tensor) -> None:
+        self._reco_hits = value
 
-def get_hits_from_csv(csv_file: str, plane_labels: Tuple[int, ...] = (0, 1, 2)) -> Hits:
+
+def get_hits_from_csv(
+    csv_file: str,
+    plane_labels: Tuple[int, ...] = (0, 1, 2),
+    spatial_res: Optional[Tensor] = None,
+    energy_range: Optional[Tuple[float, float]] = None,
+) -> Hits:
     if Path(csv_file).is_file():
         if csv_file.endswith(".csv"):
             # read csv file
@@ -192,7 +230,7 @@ def get_hits_from_csv(csv_file: str, plane_labels: Tuple[int, ...] = (0, 1, 2)) 
                 col for col in df.columns for label in plane_labels if str(label) in col
             ] + ["E"]
 
-            return Hits(df=df[cols])
+            return Hits(df=df[cols], spatial_res=spatial_res, energy_range=energy_range)
         else:
             raise ValueError("Only csv files are supported.")
     else:
