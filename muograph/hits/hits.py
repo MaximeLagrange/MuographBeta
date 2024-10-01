@@ -3,6 +3,17 @@ import pandas as pd
 import torch
 from torch import Tensor
 from typing import Optional, Tuple
+import matplotlib
+import matplotlib.pyplot as plt
+
+from plotting.plotting import get_n_bins_xy_from_xy_span
+from plotting.params import (
+    font,
+    d_unit,
+    n_bins_2D,
+    hist_figsize,
+    labelsize,
+)
 
 
 class Hits:
@@ -18,23 +29,30 @@ class Hits:
 
     def __init__(
         self,
-        csv_filename: Optional[Path] = None,
+        plane_labels: Optional[Tuple[int, ...]] = None,
+        csv_filename: Optional[str] = None,
         df: Optional[pd.DataFrame] = None,
         spatial_res: Optional[Tensor] = None,
         energy_range: Optional[Tuple[float, float]] = None,
+        efficiency: float = 1.0,
     ) -> None:
         r"""
         Initializes the Hits object with the path to the CSV file or a pd.DataFrame.
 
         Args:
-            csv_filename (Path): The path to the CSV file containing
+            csv_filename (str): The path to the CSV file containing
             hit and energy data.
             df (pd.DataFrame): The CSV file containing
             hit and energy data.
         """
-        self.spatial_res = spatial_res
+        # Detector panel parameters
+        self.spatial_res = spatial_res  # in `d_unit``
+        self.efficiency = efficiency  # in %
+
+        # Energy range
         self.energy_range = energy_range
 
+        # Load or create hits DataFrame
         if csv_filename is not None and df is not None:
             raise ValueError("Provide either csv_filename or df, not both.")
 
@@ -45,14 +63,28 @@ class Hits:
         else:
             raise ValueError("Either csv_filename or df must be provided.")
 
+        # Panels label
+        self.plane_labels = (
+            plane_labels
+            if plane_labels is not None
+            else self.get_panels_labels_from_df(self._df)
+        )
+
+        # Filter events with E out of energy_range
         if self.energy_range is not None:
             energy_mask = (self.E > self.energy_range[0]) & (
                 self.E < self.energy_range[-1]
             )
             self._filter_events(energy_mask)
 
+        # detector efficiency
+        if (self.efficiency > 0.0) & (self.efficiency <= 1.0):
+            self.total_efficiency = self.efficiency**self.n_panels
+        else:
+            raise ValueError("Panels efficiency must be in [0., 1.].")
+
     @staticmethod
-    def get_data_frame_from_csv(csv_filename: Path) -> pd.DataFrame:
+    def get_data_frame_from_csv(csv_filename: str) -> pd.DataFrame:
         r"""
         Reads a CSV file into a DataFrame.
 
@@ -63,13 +95,15 @@ class Hits:
         Returns:
             pd.DataFrame: The DataFrame containing the data from the CSV file.
         """
-        if not csv_filename.exists():
+        if not Path(csv_filename).exists():
             raise FileNotFoundError(f"The file {csv_filename} does not exist.")
 
         return pd.read_csv(csv_filename)
 
     @staticmethod
-    def get_hits_from_df(df: pd.DataFrame) -> Tensor:
+    def get_hits_from_df(
+        df: pd.DataFrame, plane_labels: Tuple[int, ...] = None
+    ) -> Tensor:
         r"""
         Extracts hits data from a DataFrame and returns it as a Tensor.
 
@@ -84,16 +118,11 @@ class Hits:
             hits (Tensor): Hits, with size (3, n_plane, n_mu)
         """
         # Extract plane count and validate columns
-        planes = [col for col in df.columns if col.startswith("X")]
-        plane_numbers = [int(s[1:]) for s in planes]
-        n_plane = len(planes)
 
-        if not planes or len(planes) == 0:
-            raise KeyError("No columns starting with 'X' found in the DataFrame.")
-
+        n_plane = len(plane_labels)  # type: ignore
         hits = torch.zeros((3, n_plane, len(df)))
 
-        for i, plane in enumerate(plane_numbers):
+        for i, plane in enumerate(plane_labels):  # type: ignore
             x_col = f"X{plane}"
             y_col = f"Y{plane}"
             z_col = f"Z{plane}"
@@ -131,6 +160,26 @@ class Hits:
         return torch.tensor(df["E"].values)
 
     @staticmethod
+    def get_panels_labels_from_df(df: pd.DataFrame) -> Tuple[int, ...]:
+        r"""
+        Get the labels of ALL detector panels from the csv file.
+
+        IMPORTANT:
+            The DataFrame must have the following column 'X':
+
+        Args:
+            df (pd.DataFrame): DataFrame where the hits and muons energy are saved.
+
+        Returns:
+            plane_labels (Tuple[int, ...]): The labels of the detector panels.
+        """
+
+        planes = [col for col in df.columns if col.startswith("X")]
+        plane_labels = tuple([int(s[1:]) for s in planes])
+
+        return plane_labels
+
+    @staticmethod
     def get_reco_hits_from_gen_hits(gen_hits: Tensor, spatial_res: Tensor) -> Tensor:
         r"""
         Smear the gen_hits position using a Normal distribution centered at 0,
@@ -165,6 +214,67 @@ class Hits:
         self.gen_hits = self.gen_hits[:, :, mask]
         self.E = self.E[mask]
 
+    def plot_hits(
+        self,
+        plane_label: int = 0,
+        reco_hits: bool = True,
+        n_bins: int = n_bins_2D,
+        filename: Optional[str] = None,
+    ) -> None:
+        # Set default font
+        matplotlib.rc("font", **font)
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=hist_figsize)
+
+        # Get true hits or real hits
+        hits = self.reco_hits if reco_hits is True else self.gen_hits
+
+        # The span of the detector in x and y
+        dx = (hits[0, plane_label].max() - hits[0, plane_label].min()).item()
+        dy = (hits[1, plane_label].max() - hits[1, plane_label].min()).item()
+
+        # Get the number of bins as function of the xy ratio
+        bins_x, bins_y, pixel_size = get_n_bins_xy_from_xy_span(
+            dx=dx, dy=dy, n_bins=n_bins
+        )
+
+        # Plot hits as 2D histogram
+        h = ax.hist2d(
+            hits[0, plane_label],
+            hits[1, plane_label],
+            bins=(bins_x, bins_y),
+        )
+
+        ax.set_aspect("equal")
+
+        # Set axis labels
+        ax.set_xlabel(f"x [{d_unit}]", fontweight="bold")
+        ax.set_ylabel(f"y [{d_unit}]", fontweight="bold")
+        ax.tick_params(axis="both", labelsize=labelsize)
+
+        # Set figure title
+        fig.suptitle(
+            f"Muon hits on plane {plane_label} \nat z = {hits[2,plane_label,0]:.0f} [{d_unit}]",
+            fontweight="bold",
+            y=1,
+        )
+
+        # Add colorbar
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        fig.colorbar(
+            h[3], cax=cbar_ax, label=f"# hits / {pixel_size**2:.0f} {d_unit}$^2$"
+        )
+
+        # Save plot
+        if filename is not None:
+            plt.savefig(filename, bbox_inches="tight")
+        plt.show()
+
+    @property
+    def n_panels(self) -> int:
+        return self.gen_hits.size()[1]
+
     @property
     def E(self) -> Tensor:
         r"""
@@ -189,7 +299,7 @@ class Hits:
         Hits data as a Tensor with size (3, n_plane, mu).
         """
         if self._gen_hits is None:
-            self._gen_hits = self.get_hits_from_df(self._df)
+            self._gen_hits = self.get_hits_from_df(self._df, self.plane_labels)
         return self._gen_hits
 
     @gen_hits.setter
@@ -212,26 +322,3 @@ class Hits:
     @reco_hits.setter
     def reco_hits(self, value: Tensor) -> None:
         self._reco_hits = value
-
-
-def get_hits_from_csv(
-    csv_file: str,
-    plane_labels: Tuple[int, ...] = (0, 1, 2),
-    spatial_res: Optional[Tensor] = None,
-    energy_range: Optional[Tuple[float, float]] = None,
-) -> Hits:
-    if Path(csv_file).is_file():
-        if csv_file.endswith(".csv"):
-            # read csv file
-            df = pd.read_csv(csv_file)
-
-            # Only retrieve hits with corresponding plane number
-            cols = [
-                col for col in df.columns for label in plane_labels if str(label) in col
-            ] + ["E"]
-
-            return Hits(df=df[cols], spatial_res=spatial_res, energy_range=energy_range)
-        else:
-            raise ValueError("Only csv files are supported.")
-    else:
-        raise ValueError("{} file does not exists!".format(csv_file))
