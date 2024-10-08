@@ -37,6 +37,7 @@ class Tracking(AbsSave):
     _angular_error: Optional[Tensor] = None  # (mu)
     _angular_res: Optional[float] = None
     _E: Optional[Tensor] = None  # (mu)
+    _tracks_eff: Optional[Tensor] = None  # (mu)
 
     _vars_to_save = [
         "tracks",
@@ -45,6 +46,7 @@ class Tracking(AbsSave):
         "E",
         "label",
         "type",
+        "tracks_eff",
     ]
 
     def __init__(
@@ -64,10 +66,8 @@ class Tracking(AbsSave):
 
         Args:
             hits (Hits): An instance of the Hits class.
-            label (str): The position of the hits with respect to the passive volume.
-            either 'above' or 'below'
-            output_dir (str): The name of the directory where to save the Tracking attributes
-            in _vars_to_save.
+            label (str): The position of the hits with respect to the passive volume, either 'above' or 'below'.
+            output_dir (str): The name of the directory where to save the Tracking attributes in _vars_to_save.
             tracks_hdf5 (str): The path to the hdf5 file where a Tracking instance was saved.
             type (str): The type of measurement campaign. Either absorption or freesky.
         """
@@ -185,6 +185,15 @@ class Tracking(AbsSave):
 
         return theta_xy
 
+    @staticmethod
+    def get_tracks_eff_from_hits_eff(hits_eff: Tensor) -> Tensor:
+        r"""
+        Computes the tracks efficiency.
+        """
+
+        tracks_eff = torch.where(hits_eff.sum(dim=0) == 3, 1, 0)
+        return tracks_eff
+
     def get_angular_error(self, reco_theta: Tensor) -> Tensor:
         r"""
         Compute the angular error between the generated and reconstructed tracks.
@@ -249,6 +258,11 @@ class Tracking(AbsSave):
         plt.show()
 
     def plot_angular_error(self, filename: Optional[str] = None) -> None:
+        """Plot the angular error of the tracks.
+
+        Args:
+            filename (Optional[str], optional): Path to a file where to save the figure. Defaults to None.
+        """
         # Set default font
         matplotlib.rc("font", **font)
 
@@ -303,7 +317,7 @@ class Tracking(AbsSave):
         ax.legend()
         plt.tight_layout()
         if filename is not None:
-            plt.savefig(filename, bbox_inches="tight")
+            plt.savefig(self.output_dir / filename, bbox_inches="tight")
         plt.show()
 
     def _reset_vars(self) -> None:
@@ -332,40 +346,6 @@ class Tracking(AbsSave):
             if isinstance(data, Tensor):
                 if data.size()[0] == n_muons:
                     setattr(self, var, data[mask])
-
-    @staticmethod
-    def test_my_ass(a: float, b: float, N: float) -> float:
-        """
-        Creates an instance of MyClass from the C++ code, calls the run() method,
-        and returns the result.
-
-        :param a: First double value to pass to MyClass
-        :param b: Second double value to pass to MyClass
-        :param N: Integer value to pass to MyClass
-        :return: Result of calling the run() method on the MyClass object
-        """
-
-        import sys
-        import os
-
-        # Add the directory where mylib.so (compiled extension) is located to the Python path
-        sys.path.append(
-            os.path.abspath(
-                "/home/geant/Desktop/TASKS/Muograph/MuographBeta/muograph/test"
-            )
-        )
-
-        # Now you can import the compiled C++ module
-        import mylib
-
-        # Create an instance of the MyClass class
-        obj = mylib.MyClass(a, b, N)
-
-        # Call the run() method
-        result = obj.run()
-
-        # Return the result
-        return result
 
     @property
     def tracks(self) -> Tensor:
@@ -396,6 +376,19 @@ class Tracking(AbsSave):
     @points.setter
     def points(self, value: Tensor) -> None:
         self._points = value
+
+    @property
+    def tracks_eff(self) -> Tensor:
+        r"""
+        The tracks efficiency.
+        """
+        if self._tracks_eff is None:
+            self._tracks_eff = self.get_tracks_eff_from_hits_eff(self.hits.hits_eff)  # type: ignore
+        return self._tracks_eff
+
+    @tracks_eff.setter
+    def tracks_eff(self, value: Tensor) -> None:
+        self._tracks_eff = value
 
     @property
     def theta_xy(self) -> Tensor:
@@ -487,13 +480,9 @@ class TrackingMST(AbsSave):
     _theta_xy_in: Optional[Tensor] = None  # (2, mu)
     _theta_xy_out: Optional[Tensor] = None  # (2, mu)
     _dtheta: Optional[Tensor] = None  # (mu)
+    _muon_eff: Optional[Tensor] = None  # (mu)
 
-    _vars_to_load = [
-        "tracks",
-        "points",
-        "angular_res",
-        "E",
-    ]
+    _vars_to_load = ["tracks", "points", "angular_res", "E", "tracks_eff"]
 
     def __init__(
         self,
@@ -530,6 +519,10 @@ class TrackingMST(AbsSave):
         elif trackings is not None and tracking_files is None:
             for tracking, tag in zip(trackings, ["_in", "_out"]):
                 self.load_attr_from_tracking(tracking, tag)
+
+        # Filter muon event due to detector efficiency
+        print(f"{(self.muon_eff==False).sum()} muon removed due to detector efficiency")
+        self._filter_muons(self.muon_eff)
 
     def load_attr_from_tracking(self, tracking: Tracking, tag: str) -> None:
         r"""
@@ -576,6 +569,22 @@ class TrackingMST(AbsSave):
         dtheta = torch.acos(dot_prod)
         return dtheta
 
+    @staticmethod
+    def get_muon_eff(tracks_eff_in: Tensor, tracks_eff_out: Tensor) -> Tensor:
+        """Computes muon-wise efficiency through all detector panels, based on the
+        muon-wise efficiency through the set of panels before and after the object.
+        Muon is detected => efficency = 1, muon not detected => efficiency = 0.
+
+        Args:
+            tracks_eff_in (Tensor): muon-wise efficiency through the set of panels before the object.
+            tracks_eff_out (Tensor): muon-wise efficiency through the set of panels after the object.
+
+        Returns:
+            muon_wise_eff: muon-wise efficiency through all detector panels.
+        """
+        muon_wise_eff = (tracks_eff_in + tracks_eff_out) == 2
+        return muon_wise_eff
+
     def _filter_muons(self, mask: Tensor) -> None:
         r"""
         Remove muons specified as False in `mask`.
@@ -610,7 +619,7 @@ class TrackingMST(AbsSave):
         r"""
         Plot the zenith angle and energy of the reconstructed tracks.
         Args:
-            figname (Tensor): If provided, save the figure at self.output / figname.
+            figname (str): If provided, save the figure at self.output / figname.
         """
         # Set default font
         matplotlib.rc("font", **font)
@@ -644,10 +653,12 @@ class TrackingMST(AbsSave):
         axs[1].set_xlabel(r" Energy [MeV]", fontweight="bold")
 
         # Scattering angle
-        axs[2].hist(self.dtheta.numpy() * 180, bins=n_bins, alpha=alpha, log=True)
+        axs[2].hist(
+            self.dtheta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha, log=True
+        )
         axs[2].axvline(
-            x=self.dtheta.mean().numpy() * 180,
-            label=f"mean = {self.dtheta.mean().numpy() * 180:.3E}",
+            x=self.dtheta.mean().numpy() * 180 / math.pi,
+            label=f"mean = {self.dtheta.mean().numpy() * 180 / math.pi:.3E}",
             color="red",
         )
         axs[2].set_xlabel(r" Scattering angle $\delta\theta$ [deg]", fontweight="bold")
@@ -714,6 +725,30 @@ class TrackingMST(AbsSave):
     @tracks_out.setter
     def tracks_out(self, value: Tensor) -> None:
         self._tracks_out = value
+
+    @property
+    def tracks_eff_in(self) -> Tensor:
+        return self._tracks_eff_in
+
+    @tracks_eff_in.setter
+    def tracks_eff_in(self, value: Tensor) -> None:
+        self._tracks_eff_in = value
+
+    @property
+    def tracks_eff_out(self) -> Tensor:
+        return self._tracks_eff_out
+
+    @tracks_eff_out.setter
+    def tracks_eff_out(self, value: Tensor) -> None:
+        self._tracks_eff_out = value
+
+    # Muon efficiency
+    @property
+    def muon_eff(self) -> Tensor:
+        """The muon efficiencies."""
+        if self._muon_eff is None:
+            self._muon_eff = self.get_muon_eff(self.tracks_eff_in, self.tracks_eff_out)
+        return self._muon_eff
 
     # Points
     @property
