@@ -113,7 +113,8 @@ class BCA(POCA):
             - n_max_per_voxel (int) Number of highest scattering angle to keep
             among poca points located within a given voxel.
             - voi (Volume) Instance of the voi class.
-            - bca_indices (Tensor) Indinces of voxels the poca points are located in.
+            - bca_indices (Tensor) Indices of voxels the poca points are located in.
+            - dtheta (Tensor): Muon scattering angle.
 
         Returns:
             - mask (Tensor) a mask specifying true if the muon scattering angle is ranked
@@ -348,6 +349,14 @@ class BCA(POCA):
         self.bca_poca_points = self.bca_poca_points[mask]
         self.bca_tracks._filter_muons(mask=mask)
 
+    def get_dir_name(self) -> Path:
+        """Returns the name of the BCA algo given its parameters.
+
+        Returns:
+            Path: Path to the BCA directory.
+        """
+        return Path(str(self.output_dir) + "/" + self.bca_name + "/")
+
     def get_bca_pred(self) -> Tuple[Tensor, Tensor]:
         """
         Run the BCA algorithm, as implemented in:
@@ -374,8 +383,6 @@ class BCA(POCA):
             If a voxel contains less than n_min_per_voxel, is final score will be 0.
         """
 
-        # Create output directory with BCA name
-        self.dir_name = Path(str(self.output_dir) + "/" + self.bca_name + "/")
         self.create_directory(self.dir_name)
 
         # Copy relevant features before event selection
@@ -524,3 +531,8 @@ class BCA(POCA):
         The normalized scattering density predictions.
         """
         return normalize(self.xyz_voxel_pred)
+
+    @property
+    def dir_name(self) -> Path:
+        """The path to the directory corresponding to the current set of parameters."""
+        return self.get_dir_name()
