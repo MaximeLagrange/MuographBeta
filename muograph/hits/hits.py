@@ -27,6 +27,9 @@ class Hits:
     # Muon energy
     _E = None  # (mu)
 
+    # Hits efficiency
+    _hits_eff: Optional[Tensor] = None
+
     def __init__(
         self,
         plane_labels: Optional[Tuple[int, ...]] = None,
@@ -78,9 +81,7 @@ class Hits:
             self._filter_events(energy_mask)
 
         # detector efficiency
-        if (self.efficiency > 0.0) & (self.efficiency <= 1.0):
-            self.total_efficiency = self.efficiency**self.n_panels
-        else:
+        if (self.efficiency < 0.0) | (self.efficiency > 1.0):
             raise ValueError("Panels efficiency must be in [0., 1.].")
 
     @staticmethod
@@ -202,6 +203,30 @@ class Hits:
 
         return reco_hits
 
+    @staticmethod
+    def get_muon_wise_eff(efficiency: float, gen_hits: Tensor) -> Tensor:
+        r"""
+        Returns a muon-wise efficiency based on the panels' efficiency.
+        The muon-wise efficiency is either 0 (muon not detected) or 1 (muon detected).
+
+        IMPORTANT: Currently, all panels are assumed to have the same efficency.
+        Can be improved by setting the effieicy as a tensor with size n_panels instead of a float.
+
+        Args:
+            efficiency (float): The panels' efficency. Must be between 0 and 1.
+            gen_hits (Tensor): The generated_hits.
+
+        Returns:
+            muon_wise_eff (Tensor): The muon-wise efficiency.
+        """
+
+        # Probability for a muon to leave hit on a detector panel
+        p = torch.rand(gen_hits.size()[1:])
+
+        muon_wise_eff = torch.where(p < efficiency, 1, 0)
+
+        return muon_wise_eff
+
     def _filter_events(self, mask: Tensor) -> None:
         r"""
         Remove muons specified as False in `mask`.
@@ -221,6 +246,15 @@ class Hits:
         n_bins: int = n_bins_2D,
         filename: Optional[str] = None,
     ) -> None:
+        """Plot the XY coordinates of the muon hits on a given detector plane, as a 2D histogram.
+
+
+        Args:
+            plane_label (int, optional): The label of the panel to plot. Defaults to 0.
+            reco_hits (bool, optional): Plot the reconstructed hits `rec_hits` if True, else the generated hits `gen_hits`. Defaults to True.
+            n_bins (int, optional): The number of bins of the 2D histogram. Defaults to n_bins_2D.
+            filename (Optional[str], optional): Path to a filename where to save the figure. Defaults to None.
+        """
         # Set default font
         matplotlib.rc("font", **font)
 
@@ -322,3 +356,9 @@ class Hits:
     @reco_hits.setter
     def reco_hits(self, value: Tensor) -> None:
         self._reco_hits = value
+
+    @property
+    def hits_eff(self) -> Tensor:
+        if self._hits_eff is None:
+            self._hits_eff = self.get_muon_wise_eff(self.efficiency, self.gen_hits)
+        return self._hits_eff
