@@ -192,6 +192,7 @@ class VoxelPlotting:
         filename: Optional[str] = None,
         reverse: bool = False,
         pred_label: str = "Scattering density",
+        fig_suptitle: str = "Voxels predictions",
         pred_unit: str = "[a.u]",
         scale: float = 7.0,
         cmap: str = cmap,
@@ -282,6 +283,7 @@ class VoxelPlotting:
                 "y_vox_pos": voi.voxel_centers[
                     0, :, 0, 1
                 ],  # Voxels position along the y axis (on the plot)
+                "plane": "XY",
             },
             1: {
                 "xy_dims": (0, 2),
@@ -300,6 +302,7 @@ class VoxelPlotting:
                 "y_data_uncs": xy_data_uncs.sum(dim=0) / voi.n_vox_xyz[0],
                 "x_vox_pos": voi.voxel_centers[:, 0, 0, 0],
                 "y_vox_pos": voi.voxel_centers[0, 0, :, 2],
+                "plane": "XZ",
             },
             0: {
                 "xy_dims": (1, 2),
@@ -318,6 +321,7 @@ class VoxelPlotting:
                 "y_data_uncs": xy_data_uncs.sum(dim=0) / voi.n_vox_xyz[2],
                 "x_vox_pos": voi.voxel_centers[0, :, 0, 1],
                 "y_vox_pos": voi.voxel_centers[0, 0, :, 2],
+                "plane": "YZ",
             },
         }
 
@@ -361,9 +365,14 @@ class VoxelPlotting:
         ax_histx.tick_params(axis="x", labelbottom=False, labelsize=labelsize)
         ax_histy.tick_params(axis="y", labelleft=False, labelsize=labelsize)
 
+        # Set ticks position to top
+        ax_histy.xaxis.set_ticks_position("top")
+        ax_histy.xaxis.set_label_position("top")
+        # ax_histy.xaxis.tick_top()
+
         # Set figure title
         ax_histx.set_title(
-            f"{pred_label}\nfor volume slice {dim_mapping[dim]['dim_label']} "
+            f"{fig_suptitle}\nfor volume slice {dim_mapping[dim]['dim_label']} "
             + r"$\in$"
             + f"[{slice_range[0]:.0f}, {slice_range[-1]:.0f}] {d_unit}",
             fontweight="bold",
@@ -374,10 +383,10 @@ class VoxelPlotting:
         # Plot the predictions averaged along the x and y axis
         if xyz_voxel_pred_uncs is None:
             ax_histx.scatter(
-                dim_mapping[dim]["x_vox_pos"], dim_mapping[dim]["x_data"], marker="+"
+                dim_mapping[dim]["x_vox_pos"], dim_mapping[dim]["x_data"], marker="."
             )
             ax_histy.scatter(
-                dim_mapping[dim]["y_data"], dim_mapping[dim]["y_vox_pos"], marker="+"
+                dim_mapping[dim]["y_data"], dim_mapping[dim]["y_vox_pos"], marker="."
             )
 
         else:
@@ -439,7 +448,10 @@ class VoxelPlotting:
 
         # Save plot
         if filename is not None:
-            plt.savefig(filename, bbox_inches="tight")
+            plt.savefig(
+                filename + "_" + dim_mapping[dim]["plane"] + "_view",
+                bbox_inches="tight",
+            )
         plt.show()
 
     @staticmethod
@@ -454,6 +466,7 @@ class VoxelPlotting:
         reverse: bool = False,
         fig_suptitle: str = "Voxels predictions",
         colorbar_label: str = "Normalized density [a.u]",
+        pred_unit: str = "",
         scale: float = scale,
         cmap: str = cmap,
     ) -> None:
@@ -549,6 +562,7 @@ class VoxelPlotting:
                 "dim_label": "z",
                 "x_label": f"x [{d_unit}]",
                 "y_label": f"y [{d_unit}]",
+                "plane": "XY",
             },
             1: {
                 "slice_fn": lambda p, s: p[:, s : s + nslice_per_plot].sum(dim=1)
@@ -568,6 +582,7 @@ class VoxelPlotting:
                 "dim_label": "y",
                 "x_label": f"x [{d_unit}]",
                 "y_label": f"z [{d_unit}]",
+                "plane": "XZ",
             },
             0: {
                 "slice_fn": lambda p, s: p[s : s + nslice_per_plot].sum(dim=0)
@@ -587,6 +602,7 @@ class VoxelPlotting:
                 "dim_label": "x",
                 "x_label": f"y [{d_unit}]",
                 "y_label": f"z [{d_unit}]",
+                "plane": "YZ",
             },
         }
 
@@ -642,7 +658,10 @@ class VoxelPlotting:
 
         # Add color bar
         cbar_ax = fig.add_axes([1.01, 0.15, 0.05, 0.7])
-        fig.colorbar(im, cax=cbar_ax, label=colorbar_label)
+        cbar = fig.colorbar(im, cax=cbar_ax, label=colorbar_label)
+        cbar.set_label(
+            colorbar_label + " " + pred_unit, fontweight="bold"
+        )  # Colorbar label
 
         plt.subplots_adjust(right=0.99)
 
@@ -658,7 +677,10 @@ class VoxelPlotting:
 
         # Save file
         if filename is not None:
-            fig.savefig(filename, bbox_inches="tight")
+            fig.savefig(
+                filename + "_" + dim_mapping[dim]["plane"] + "_view",  # type: ignore
+                bbox_inches="tight",
+            )
 
         plt.show()
 
