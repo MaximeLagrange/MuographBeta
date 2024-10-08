@@ -5,7 +5,7 @@ from typing import Tuple, Optional
 import numpy as np
 
 from volume.volume import Volume
-from plotting.params import d_unit
+from plotting.params import d_unit, n_bins_2D
 
 
 def plot_n_poca_per_voxel(
@@ -241,3 +241,45 @@ def plot_2d_vector(
     )
 
     ax.set_aspect("equal")
+
+
+def get_n_bins_xy_from_xy_span(
+    dx: float, dy: float, n_bins: int = n_bins_2D
+) -> Tuple[int, int]:
+    r"""
+    Calculate the number of bins along the x and y dimensions based on the
+    aspect ratio of the plot and the total desired number of bins.
+
+    The function adjusts the bin counts proportionally according to the span
+    of the plot along the x (`dx`) and y (`dy`) dimensions, ensuring that the
+    total number of bins along both dimensions is close to the specified
+    `n_bins`, while maintaining the plot's aspect ratio.
+
+    Args:
+        dx (float): The span of the plot along the x-axis.
+        dy (float): The span of the plot along the y-axis.
+        n_bins (int): The total desired number of bins (along the longer dimension).
+
+    Returns:
+        Tuple[int, int, float]: The number of bins along the x-axis (`nx`) and y-axis (`ny`), and the pixel size.
+                         The larger span will be allocated `n_bins`, while the other
+                         dimension will have a proportional number of bins based on
+                         the aspect ratio of `dx` and `dy`.
+    """
+
+    if dx == dy:
+        # If spans are equal, assign equal bins to both x and y.
+        nx, ny = n_bins, n_bins
+        pixel_size = round(dx / n_bins)
+    if dx > dy:
+        # If x-span is larger, allocate n_bins to x and scale y accordingly.
+        nx = n_bins
+        ny = round(n_bins * (dy / dx))
+        pixel_size = round(dx / n_bins)
+    else:
+        # If y-span is larger, allocate n_bins to y and scale x accordingly.
+        ny = n_bins
+        nx = round(n_bins * (dx / dy))
+        pixel_size = round(dy / n_bins)
+
+    return nx, ny, pixel_size
