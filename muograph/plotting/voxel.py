@@ -123,7 +123,7 @@ class VoxelPlotting:
                 return xyz_voxel_preds[start : end + 1, :, :].mean(dim=0)
 
     @staticmethod
-    def get_slice_range(
+    def get_voi_slice(
         dim: int, voi: Volume, voi_slice: Union[int, Tuple[int, int]]
     ) -> Tuple[float, float]:
         """
@@ -211,7 +211,7 @@ class VoxelPlotting:
             - xyz_voxel_preds (`Tensor`): The 3D tensor containing voxel-wise predictions (shape: [n_vox_x, n_vox_y, n_vox_z]).
             - xyz_voxel_pred_uncs : (`Optional[Tensor]`): Optional 3D tensor of the same shape as `xyz_voxel_preds` containing prediction
             uncertainties, by default None.
-            - voi_slice  (`int`): The index of the slice along the selected dimension `dim`.
+            - voi_slice  (`Tuple[int, int]`): The index of the slice along the selected dimension `dim`.
             - dim (`int`): The dimension along which to slice the 3D voxel-wise predictions.
             Must be 0, 1, or 2 corresponding to x, y, or z axes respectively.
             - filename (`Optional[str]`): If provided, saves the plot to the given file name, by default None.
@@ -248,7 +248,7 @@ class VoxelPlotting:
             xy_data_uncs = torch.zeros_like(xy_data)
 
         # Get the range of the slice position along the reduced dimnsion
-        slice_range = VoxelPlotting.get_slice_range(
+        voi_slice_coord = VoxelPlotting.get_voi_slice(
             dim=dim, voi=voi, voi_slice=voi_slice
         )
 
@@ -374,7 +374,7 @@ class VoxelPlotting:
         ax_histx.set_title(
             f"{fig_suptitle}\nfor volume slice {dim_mapping[dim]['dim_label']} "
             + r"$\in$"
-            + f"[{slice_range[0]:.0f}, {slice_range[-1]:.0f}] {d_unit}",
+            + f"[{voi_slice_coord[0]:.0f}, {voi_slice_coord[-1]:.0f}] {d_unit}",
             fontweight="bold",
             fontsize=titlesize,
             y=1.05,
@@ -458,7 +458,7 @@ class VoxelPlotting:
     def plot_pred_by_slice(
         voi: Volume,
         xyz_voxel_preds: Tensor,
-        slice_range: Optional[Tuple[int, int]] = None,
+        voi_slice: Optional[Tuple[int, int]] = None,
         dim: int = 2,
         ncols: int = 4,
         nslice_per_plot: int = 1,
@@ -477,11 +477,11 @@ class VoxelPlotting:
         cmap = cmap + "_r" if reverse else cmap
 
         # The range of volume slice to plot
-        if slice_range is None:
-            slice_range = (0, voi.n_vox_xyz[dim])
+        if voi_slice is None:
+            voi_slice = (0, voi.n_vox_xyz[dim])
 
         # The number of volume slice to take into account
-        nplots = int(slice_range[1] - slice_range[0])
+        nplots = int(voi_slice[1] - voi_slice[0])
 
         # If multiple slices per plot, adjust nplots accordingly
         if nslice_per_plot > 1:
@@ -529,8 +529,8 @@ class VoxelPlotting:
             sliced_preds = [
                 slice_fn(xyz_voxel_preds, slice)
                 for slice in range(
-                    slice_range[0],
-                    slice_range[0] + (nplots * nslice_per_plot),
+                    voi_slice[0],
+                    voi_slice[0] + (nplots * nslice_per_plot),
                     nslice_per_plot,
                 )
             ]
@@ -617,8 +617,8 @@ class VoxelPlotting:
         # Loop over the number of voxels along `dim` dimension
         for i, slice in enumerate(
             range(
-                slice_range[0],
-                slice_range[0] + (nplots * nslice_per_plot),
+                voi_slice[0],
+                voi_slice[0] + (nplots * nslice_per_plot),
                 nslice_per_plot,
             )
         ):
@@ -678,7 +678,7 @@ class VoxelPlotting:
         # Save file
         if filename is not None:
             fig.savefig(
-                filename + "_" + dim_mapping[dim]["plane"] + "_view",  # type: ignore
+                filename + "_" + dim_mapping[dim]["plane"] + "_view_slice",  # type: ignore
                 bbox_inches="tight",
             )
 
