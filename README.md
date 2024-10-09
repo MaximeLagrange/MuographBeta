@@ -12,7 +12,7 @@ This repo provides a library for muon scattering tomography and muon transmissio
 
 As a disclaimer, this library is more of an aggregate of muon tomography algorithms used throughtout PhD research rather than a polished product for the general public. As such, this repo targets mostly muon tomography reaserchers and enthousiasts.
 
-Users can find ready to use scattering density algorihms as well as smaples of simulated data.
+Users can find ready to use scattering density algorihms as well as samples of simulated data.
 
 While curently being at a preliminary stage, this library is designed to be extended by users, whom are invited to implement their favorite reconstruction, material inference or image processing algorithms.
 
@@ -45,4 +45,4 @@ conda deactivate
 
 A few examples to introduce users to the package can be found in the `./example/` folder.
 
-![example](./images/example_preview.png)
+![example](./images/examples_preview.png)
