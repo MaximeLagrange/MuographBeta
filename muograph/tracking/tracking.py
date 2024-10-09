@@ -208,12 +208,25 @@ class Tracking(AbsSave):
         gen_theta = self.get_theta_from_tracks(tracks=gen_tracks)
         return gen_theta - reco_theta
 
-    def plot_muon_features(self, figname: Optional[str] = None) -> None:
+    def plot_muon_features(
+        self,
+        figname: Optional[str] = None,
+        dir: Optional[str] = None,
+        save: bool = True,
+    ) -> None:
         r"""
         Plot the zenith angle and energy of the reconstructed tracks.
         Args:
             figname (Tensor): If provided, save the figure at self.output / figname.
         """
+
+        # Set default figname
+        if figname is None:
+            figname = "tracks_theta_E_" + self.label
+
+        # Set default output directory
+        if dir is None:
+            dir = str(self.output_dir) + "/"
 
         # Set default font
         matplotlib.rc("font", **font)
@@ -252,17 +265,31 @@ class Tracking(AbsSave):
             ax.legend()
         plt.tight_layout()
 
-        if figname is not None:
+        if save:
             plt.savefig(self.output_dir / figname, bbox_inches="tight")
 
         plt.show()
 
-    def plot_angular_error(self, filename: Optional[str] = None) -> None:
+    def plot_angular_error(
+        self,
+        figname: Optional[str] = None,
+        dir: Optional[str] = None,
+        save: bool = True,
+    ) -> None:
         """Plot the angular error of the tracks.
 
         Args:
             filename (Optional[str], optional): Path to a file where to save the figure. Defaults to None.
         """
+
+        # Set default figname
+        if figname is None:
+            figname = "tracks_angular_error_" + self.label
+
+        # Set default output directory
+        if dir is None:
+            dir = str(self.output_dir) + "/"
+
         # Set default font
         matplotlib.rc("font", **font)
 
@@ -285,26 +312,12 @@ class Tracking(AbsSave):
             color="red",
         )
 
-        range = (
-            torch.min(self.angular_error).item() * 180 / math.pi,
-            torch.max(self.angular_error).item() * 180 / math.pi,
-        )
-
         # Highlight 1 sigma region
-        std = self.angular_error.std().numpy()
-        mean = self.angular_error.mean().numpy()
+        std = self.angular_error.std().numpy() * 180 / math.pi
+        mean = self.angular_error.mean().numpy() * 180 / math.pi
 
-        mask_1sigma = (self.angular_error > mean - std) & (
-            self.angular_error < mean + std
-        )
-        ax.hist(
-            self.angular_error[mask_1sigma].numpy() * 180 / math.pi,
-            bins=n_bins,
-            alpha=0.3,
-            range=range,
-            color="green",
-            label=r"$\sigma$" + f" = {std * 180 / math.pi:.2f}",
-        )
+        ax.axvline(x=mean - std, color="green")
+        ax.axvline(x=mean + std, color="green", label=r"$\pm 1 \sigma$")
 
         # Grid
         ax.grid(visible=True, color="grey", linestyle="--", linewidth=0.5)
@@ -316,8 +329,9 @@ class Tracking(AbsSave):
 
         ax.legend()
         plt.tight_layout()
-        if filename is not None:
-            plt.savefig(self.output_dir / filename, bbox_inches="tight")
+
+        if save:
+            plt.savefig(self.output_dir / figname, bbox_inches="tight")
         plt.show()
 
     def _reset_vars(self) -> None:
