@@ -1,0 +1,2 @@
+data/iron_barrel/barrel_and_cubes_scattering.csv filter=lfs diff=lfs merge=lfs -text
+data/*/*.csv filter=lfs diff=lfs merge=lfs -text
