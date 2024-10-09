@@ -7,7 +7,9 @@ Simulation setup
     - CRY cosmic muon source (https://nuclear.llnl.gov/simulation/doc_cry_v1.7/cry.pdf)
     - 4m2 horizontal generation surface, placed directly above the object of interest
     - 5 million generated muons, corresponding to ~8h of data taking.
-
+    - Freesky measurement date: 1/7/2016
+    - Transmission measurement date: 1/10/2016 
+    
     Object of interest
 
     - Statue made of marble (rho = 2.71 g.cm-3), containing a 20cm diameter cylinder made of bronze
