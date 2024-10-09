@@ -13,8 +13,9 @@ d_unit: str = "mm"
 fontsize: int = 13
 labelsize: int = 12
 titlesize: int = 16
+
 fontweigh: str = "normal"
-font = {"weight": "normal", "size": fontsize, "family": "Arial"}
+font = {"weight": "normal", "size": fontsize, "family": "Serif"}
 
 # Matplotlib colormaps
 cmap: str = "jet"
