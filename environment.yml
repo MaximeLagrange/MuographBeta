@@ -15,5 +15,6 @@ dependencies:
   - numba
   - ipykernel
   - git-lfs
+  - pre-commit
   # - eigen  # Eigen for linear algebra operations
   # - tbb  # Intel's Threading Building Blocks for parallelism
