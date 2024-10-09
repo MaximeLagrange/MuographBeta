@@ -1,7 +1,16 @@
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 
 # MuographBeta: reconstruction software
 
-This repo provides libraries for Muon Scattering Tomography data analysis.
+This repo provides a library for muon scattering tomography and muon transmission tomography data analysis. 
+
+## Overview
+
+As a disclaimer, this library is more of an aggregate of muon tomography algorithms used throught PhD research rather than a polished product for the general public. As such, this repo targets mostly muon tomography reaserchers and enthousiasts.
+
+While cuurently being at a preliminary stage, his library is designed to extended by users, whom are invite to implement their favorite reconstruction, material inference or image processing algorithms.
+
 
 ## Installation
 
@@ -15,6 +24,17 @@ Simply run the following command:
 cd MuographBeta/
 conda env create --file=environment.yml
 ```
+
+You can then activate/deactivate the environment with:
+
+```bash
+conda activate muograph
+```
+
+```bash
+conda deactivate
+```
+
 
 ## Examples
 
