@@ -1,4 +1,4 @@
-name: sb
+name: muograph
 channels:
   - conda-forge
   - default
@@ -13,5 +13,6 @@ dependencies:
   - scikit-spatial
   - joblib
   - numba
+  - ipykernel
   # - eigen  # Eigen for linear algebra operations
   # - tbb  # Intel's Threading Building Blocks for parallelism
