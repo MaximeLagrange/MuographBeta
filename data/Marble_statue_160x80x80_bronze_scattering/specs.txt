@@ -10,7 +10,7 @@ Simulation setup
 
     Object of interest
 
-    - Statue made of marble (rho = 2.71 g.cm-3), containing a 10cm diameter cylinder made of bronze
+    - Statue made of marble (rho = 2.71 g.cm-3), containing a 20cm diameter cylinder made of bronze
 
     Detector
 
