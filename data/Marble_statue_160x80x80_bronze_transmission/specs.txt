@@ -1,0 +1,22 @@
+Simulation setup
+
+    Simulation was run with GEANT4 v10.07 software (https://geant4.web.cern.ch/)
+
+    Muon source
+
+    - CRY cosmic muon source (https://nuclear.llnl.gov/simulation/doc_cry_v1.7/cry.pdf)
+    - 4m2 horizontal generation surface, placed directly above the object of interest
+    - 5 million generated muons, corresponding to ~8h of data taking.
+
+    Object of interest
+
+    - Statue made of marble (rho = 2.71 g.cm-3), containing a 20cm diameter cylinder made of bronze
+
+    Detector
+
+    - 3 infinitly thin detectors, recording the true muon position
+    - Panels are placed below the object
+
+    Trigger
+
+    - Only muons crossing the 3 detector planes are recorded.
