@@ -3,14 +3,21 @@
 
 # MuographBeta: reconstruction software
 
+![logo](./images/muograph_logo.png)
+
+
 This repo provides a library for muon scattering tomography and muon transmission tomography data analysis. 
 
 ## Overview
 
-As a disclaimer, this library is more of an aggregate of muon tomography algorithms used throught PhD research rather than a polished product for the general public. As such, this repo targets mostly muon tomography reaserchers and enthousiasts.
+As a disclaimer, this library is more of an aggregate of muon tomography algorithms used throughtout PhD research rather than a polished product for the general public. As such, this repo targets mostly muon tomography reaserchers and enthousiasts.
 
-While cuurently being at a preliminary stage, his library is designed to extended by users, whom are invite to implement their favorite reconstruction, material inference or image processing algorithms.
+Users can find ready to use scattering density algorihms as well as smaples of simulated data.
 
+While curently being at a preliminary stage, this library is designed to be extended by users, whom are invited to implement their favorite reconstruction, material inference or image processing algorithms.
+
+![image](./images/mst_image_example.png)
+![event_display](./images/event_display_example.png)
 
 ## Installation
 
@@ -35,17 +42,8 @@ conda activate muograph
 conda deactivate
 ```
 
-
 ## Examples
 
-A few examples are included to introduce users to the package:
+A few examples to introduce users to the package can be found in the `./example/` folder.
 
- - 01_MST_reconstruction_example.ipynb
- - 02_generate_voxel_data.ipynb
- - 03_pca_on_mst.ipynb
-
-Example 00 requires the `1M_gen_2hods_30cm_panel_gap_barrel_voi.csv` data file.
-Example 01 requires the `no_material_10cm3_1M_gen_new_source.csv` and `iron_10cm3_1M_gen_new_source.csv` data files.
-Example 02 requires the `Aluminum.pickle`, `Glass.pickle`, `Iron.pickle`, `Lead.pickle` and `Uranium.pickle` files.
-
-All these files should be stored in `MuographBeta/data/` folder.
+![example](./images/example_preview.png)
