@@ -1,0 +1,19 @@
+Simulation setup
+
+    Simulation was run with GEANT4 v10.07 software (https://geant4.web.cern.ch/)
+
+    Muon source
+
+    - CRY cosmic muon source (https://nuclear.llnl.gov/simulation/doc_cry_v1.7/cry.pdf)
+    - 1m2 horizontal generation surface
+    - 1 million generated muons
+
+    Object of interest
+
+    - Barrel made of iron, containing cubes of uranium, lead and iron
+    - Cubes of uranium, lead and iron.are also placed outside of the barrel for comparison.
+
+    Detector
+
+    - 6 infinitly thin detectors, recording the true muon position
+    - 3 panels above, 3 panels below the object
