@@ -266,7 +266,7 @@ class Tracking(AbsSave):
         plt.tight_layout()
 
         if save:
-            plt.savefig(self.output_dir / figname, bbox_inches="tight")
+            plt.savefig(dir + figname, bbox_inches="tight")
 
         plt.show()
 
@@ -331,7 +331,7 @@ class Tracking(AbsSave):
         plt.tight_layout()
 
         if save:
-            plt.savefig(self.output_dir / figname, bbox_inches="tight")
+            plt.savefig(dir + figname, bbox_inches="tight")
         plt.show()
 
     def _reset_vars(self) -> None:
@@ -629,12 +629,25 @@ class TrackingMST(AbsSave):
         self._theta_xy_out = None  # (2, mu)
         self._dtheta = None  # (mu)
 
-    def plot_muon_features(self, figname: Optional[str] = None) -> None:
+    def plot_muon_features(
+        self,
+        figname: Optional[str] = None,
+        dir: Optional[str] = None,
+        save: bool = True,
+    ) -> None:
         r"""
         Plot the zenith angle and energy of the reconstructed tracks.
         Args:
             figname (str): If provided, save the figure at self.output / figname.
         """
+        # Set default figname
+        if figname is None:
+            figname = "tracks_theta_E_dtheta"
+
+        # Set default output directory
+        if dir is None:
+            dir = str(self.output_dir) + "/"
+
         # Set default font
         matplotlib.rc("font", **font)
 
@@ -688,8 +701,8 @@ class TrackingMST(AbsSave):
 
         plt.tight_layout()
 
-        if figname is not None:
-            plt.savefig(self.output_dir / figname, bbox_inches="tight")
+        if save:
+            plt.savefig(dir + figname, bbox_inches="tight")
 
         plt.show()
 
