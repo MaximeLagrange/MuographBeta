@@ -17,7 +17,6 @@ Users can find ready to use scattering density algorihms as well as smaples of s
 While curently being at a preliminary stage, this library is designed to be extended by users, whom are invited to implement their favorite reconstruction, material inference or image processing algorithms.
 
 ![image](./images/mst_image_example.png)
-![event_display](./images/event_display_example.png)
 
 ## Installation
 
