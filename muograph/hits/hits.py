@@ -275,8 +275,8 @@ class Hits:
 
         # Plot hits as 2D histogram
         h = ax.hist2d(
-            hits[0, plane_label],
-            hits[1, plane_label],
+            hits[0, plane_label].numpy(),
+            hits[1, plane_label].numpy(),
             bins=(bins_x, bins_y),
         )
 
