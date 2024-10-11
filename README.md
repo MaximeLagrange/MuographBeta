@@ -18,7 +18,7 @@ While curently being at a preliminary stage, this library is designed to be exte
 
 ![image](./images/mst_image_example.png)
 
-## Installation
+## Requierments
 
 The Python libraries required can be installed using [Conda](https://conda.io/projects/conda/en/latest/user-guide/getting-started.html), a powerful command line tool for package and environment managment.
 
@@ -39,6 +39,20 @@ conda activate muograph
 
 ```bash
 conda deactivate
+```
+
+## Installation
+
+Now that the required libraries have been installed, the repository can be cloned:
+
+```bash
+git clone https://github.com/MaximeLagrange/MuographBeta.git
+```
+
+This repo Git Large File Storage ([LFS](https://git-lfs.com/)) to handle the data files that are too large for GitHub. To ensure that all LFS files are downloaded, run the following command inside the repository folder:
+
+```bash
+git lfs pull
 ```
 
 ## Examples
