@@ -1,6 +1,7 @@
 import torch
 from torch import Tensor
 from typing import Tuple
+from utils.device import DEVICE
 
 
 class Volume:
@@ -27,8 +28,8 @@ class Volume:
             voxel_width (`float`): The size of the voxel. The user must ensure that
             the dimension of the volume can be divided by the voxel width.
         """
-        self.xyz = torch.tensor(position, dtype=torch.float64)
-        self.dxyz = torch.tensor(dimension, dtype=torch.float64)
+        self.xyz = torch.tensor(position, dtype=torch.float32, device=DEVICE)
+        self.dxyz = torch.tensor(dimension, dtype=torch.float32, device=DEVICE)
         self.xyz_min = self.xyz - self.dxyz / 2
         self.xyz_max = self.xyz + self.dxyz / 2
         self.vox_width = voxel_width
@@ -88,13 +89,22 @@ class Volume:
         """
         # Compute voxel centers for each axis
         xs = torch.linspace(
-            xyz_min[0] + vox_width / 2, xyz_max[0] - vox_width / 2, n_vox_xyz[0]
+            xyz_min[0] + vox_width / 2,
+            xyz_max[0] - vox_width / 2,
+            n_vox_xyz[0],
+            device=DEVICE,
         )
         ys = torch.linspace(
-            xyz_min[1] + vox_width / 2, xyz_max[1] - vox_width / 2, n_vox_xyz[1]
+            xyz_min[1] + vox_width / 2,
+            xyz_max[1] - vox_width / 2,
+            n_vox_xyz[1],
+            device=DEVICE,
         )
         zs = torch.linspace(
-            xyz_min[2] + vox_width / 2, xyz_max[2] - vox_width / 2, n_vox_xyz[2]
+            xyz_min[2] + vox_width / 2,
+            xyz_max[2] - vox_width / 2,
+            n_vox_xyz[2],
+            device=DEVICE,
         )
 
         # Create a meshgrid for the voxel centers
