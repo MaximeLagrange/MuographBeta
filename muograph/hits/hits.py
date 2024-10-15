@@ -2,7 +2,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from torch import Tensor
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -30,6 +30,14 @@ class Hits:
     # Hits efficiency
     _hits_eff: Optional[Tensor] = None
 
+    # Units
+    _unit_coef: Dict[str, float] = {
+        "mm": 1.0,
+        "cm": 10.0,
+        "dm": 100.0,
+        "m": 1000.0,
+    }
+
     def __init__(
         self,
         plane_labels: Optional[Tuple[int, ...]] = None,
@@ -38,19 +46,24 @@ class Hits:
         spatial_res: Optional[Tensor] = None,
         energy_range: Optional[Tuple[float, float]] = None,
         efficiency: float = 1.0,
+        input_unit: str = "mm",
     ) -> None:
         r"""
         Initializes the Hits object with the path to the CSV file or a pd.DataFrame.
 
         Args:
-            csv_filename (str): The path to the CSV file containing
-            hit and energy data.
-            df (pd.DataFrame): The CSV file containing
-            hit and energy data.
+            plane_labels (Tuple[int, ...]) The labels  of the planes to load from the csv file, as a tuple of integers.
+            csv_filename (str): The path to the CSV file containing hit and energy data.
+            df (pd.DataFrame): The CSV file containing hit and energy data.
+            spatial_res (Tensor): The detector panels spatial resolution alon x, y and z in mm. All panels are assumed to have the same spatial resolution.
+            efficiency (float): The detectors panels efficiency. All panels are assumed to have the same efficiency.
+            input_unit (str): The unit of the input data. Data will be rescaled to mm.
         """
         # Detector panel parameters
-        self.spatial_res = spatial_res  # in `d_unit``
+        self.spatial_res = spatial_res  # in mm
         self.efficiency = efficiency  # in %
+        if (efficiency > 1.0) | (efficiency < 0.0):
+            raise ValueError("Efficency must be positive and < 1.")
 
         # Energy range
         self.energy_range = energy_range
@@ -60,7 +73,12 @@ class Hits:
             raise ValueError("Provide either csv_filename or df, not both.")
 
         if csv_filename is not None:
+            self.input_unit = input_unit
+            if input_unit not in ["mm", "cm", "m", "dm"]:
+                raise ValueError("Input unit must be mm, cm, dm or m")
+
             self._df = self.get_data_frame_from_csv(csv_filename)
+
         elif df is not None:
             self._df = df
         else:
@@ -333,7 +351,10 @@ class Hits:
         Hits data as a Tensor with size (3, n_plane, mu).
         """
         if self._gen_hits is None:
-            self._gen_hits = self.get_hits_from_df(self._df, self.plane_labels)
+            self._gen_hits = (
+                self.get_hits_from_df(self._df, self.plane_labels)
+                * self._unit_coef[self.input_unit]
+            )
         return self._gen_hits
 
     @gen_hits.setter
@@ -348,8 +369,11 @@ class Hits:
         if self.spatial_res is None:
             return self.gen_hits
         elif self._reco_hits is None:
-            self._reco_hits = self.get_reco_hits_from_gen_hits(
-                gen_hits=self.gen_hits, spatial_res=self.spatial_res
+            self._reco_hits = (
+                self.get_reco_hits_from_gen_hits(
+                    gen_hits=self.gen_hits, spatial_res=self.spatial_res
+                )
+                * self._unit_coef[self.input_unit]
             )
         return self._reco_hits
 
