@@ -26,7 +26,15 @@ class AbsSave:
             output_dir = default_output_dir
 
         self.output_dir = Path(output_dir)
-        self.create_directory(self.output_dir)
+        try:
+            self.create_directory(self.output_dir)
+        except FileNotFoundError:
+            print(f"Directory not found: {self.output_dir}")
+        except PermissionError:
+            print(f"Permission denied: Could not create {self.output_dir}")
+        except OSError as e:
+            # General fallback for other OS-related errors, but at least it's still specific.
+            print(f"OS error occurred while creating {self.output_dir}: {e}")
 
     @staticmethod
     def create_directory(directory: Path) -> None:
