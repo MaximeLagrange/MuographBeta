@@ -56,6 +56,7 @@ class Tracking(AbsSave):
         output_dir: Optional[str] = None,
         tracks_hdf5: Optional[str] = None,
         type: Optional[str] = None,
+        save: bool = True,
     ) -> None:
         r"""
         Initializes the Tracking object.
@@ -91,11 +92,12 @@ class Tracking(AbsSave):
         if (hits is not None) & (tracks_hdf5 is None):
             self.hits = hits
 
-            self.save_attr(
-                attributes=self._vars_to_save,
-                directory=self.output_dir,
-                filename="tracks_" + self.label + "_" + self.type,
-            )
+            if save:
+                self.save_attr(
+                    attributes=self._vars_to_save,
+                    directory=self.output_dir,
+                    filename="tracks_" + self.label + "_" + self.type,
+                )
         elif tracks_hdf5 is not None:
             self.load_attr(attributes=self._vars_to_save, filename=tracks_hdf5)
 
