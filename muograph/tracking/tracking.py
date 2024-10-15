@@ -568,6 +568,8 @@ class TrackingMST(AbsSave):
             - tol (float): A tolerance parameter to avoid errors when computing acos(dot_prod).
             the dot_prod is clamped between (-1 + tol, 1 - tol). Default value is 1.e12.
 
+        IMPORTANT: Change nfrom cosine to tan to avoid floating precision issues.
+
         Returns:
             - dtheta (Tensor): The scattering angle between the incoming and outgoing muon
             tracks in [rad], with size (mu).
