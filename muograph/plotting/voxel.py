@@ -197,6 +197,7 @@ class VoxelPlotting:
         scale: float = 7.0,
         cmap: str = cmap,
         reference_value: Optional[float] = None,
+        v_min_max: Optional[Tuple[float, float]] = None,
     ) -> None:
         r"""
         Plot a 2D slice from 3D voxel-wise predictions with optional uncertainty estimates.
@@ -222,6 +223,7 @@ class VoxelPlotting:
             - cmap (`Optional[str]`): Colormap to use for the voxel prediction plot, by default 'jet'.
             - reference_value (`Optional[float]`): Optional reference value to display as a horizontal/vertical line in the averaged
             predictions plot, by default None.
+             - v_min_max ('Optional[Tuple]'): Sets the min and max values of the 2D histogram.
         """
 
         # Set default font
@@ -338,13 +340,17 @@ class VoxelPlotting:
         # Create the main figure
         fig, ax = plt.subplots(figsize=figsize)
 
+        # Set 2D map contrast
+        vmin = xy_data.ravel().min() if v_min_max is None else v_min_max[0]
+        vmax = xy_data.ravel().max() if v_min_max is None else v_min_max[1]
+
         # Plot the 2D slice predictions
         im = ax.imshow(
             xy_data.T,
             cmap=cmap,
             origin="lower",
-            vmin=xy_data.ravel().min(),
-            vmax=xy_data.ravel().max(),
+            vmin=vmin,
+            vmax=vmax,
             extent=dim_mapping[dim]["extent"],
         )
 
