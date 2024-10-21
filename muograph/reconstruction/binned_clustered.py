@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 
 from utils.tools import normalize
+from utils.device import DEVICE
 from tracking.tracking import TrackingMST
 from reconstruction.poca import POCA
 from volume.volume import Volume
@@ -219,7 +220,7 @@ class BCA(POCA):
 
         # Scattering metric
         if use_p is False:
-            momentum = torch.ones_like(dtheta)
+            momentum = torch.ones_like(dtheta, device=DEVICE, dtype=torch.float32)
         scattering_weights = self.compute_scattering_momentum_weight(
             dtheta=dtheta[poca_in_vox_mask],
             p=momentum[poca_in_vox_mask],
@@ -263,7 +264,9 @@ class BCA(POCA):
         """
 
         # Initialize score tensor with zeros
-        score_list = torch.zeros(voi.n_vox_xyz).tolist()
+        score_list = torch.zeros(
+            voi.n_vox_xyz, dtype=torch.int16, device=DEVICE
+        ).tolist()
 
         # Compute voxel indices and POCA point counts
         flat_vox_indices = (
@@ -321,8 +324,10 @@ class BCA(POCA):
         """
 
         Nx, Ny, Nz = self.voi.n_vox_xyz
-        final_voxel_scores = torch.zeros((Nx, Ny, Nz))
-        hit_per_voxel = torch.zeros((Nx, Ny, Nz))
+        final_voxel_scores = torch.zeros(
+            (Nx, Ny, Nz), device=DEVICE, dtype=torch.float32
+        )
+        hit_per_voxel = torch.zeros((Nx, Ny, Nz), device=DEVICE, dtype=torch.int16)
 
         # Iterate over each voxel in the score_list
         for i in range(Nx):
@@ -409,7 +414,9 @@ class BCA(POCA):
                 self.bca_tracks.E < self.bca_params["p_range"][1]  # type: ignore
             )
         else:
-            p_mask = torch.ones_like(self.bca_tracks.dtheta, dtype=torch.bool)
+            p_mask = torch.ones_like(
+                self.bca_tracks.dtheta, dtype=torch.bool, device=DEVICE
+            )
 
         # scattering angle cut
         dtheta_mask = (self.bca_tracks.dtheta > self.bca_params["dtheta_range"][0]) & (  # type: ignore
