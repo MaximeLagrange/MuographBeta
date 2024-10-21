@@ -5,7 +5,10 @@ import numpy as np
 import h5py
 import os
 
-muograph_path = str(Path(__file__).parent.parent.parent)
+muograph_path = (
+    str(Path(__file__).parent.parent.parent).split("/MuographBeta/")[0]
+    + "/MuographBeta/"
+)
 default_output_dir = muograph_path + "/output/"
 
 
