@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 from utils.save import AbsSave
+from utils.device import DEVICE
+from utils.params import dtype_track
 from hits.hits import Hits
 from plotting.params import n_bins, alpha, font, titlesize, hist_figsize, labelsize
 
@@ -57,6 +59,7 @@ class Tracking(AbsSave):
         tracks_hdf5: Optional[str] = None,
         type: Optional[str] = None,
         save: bool = True,
+        compute_angular_res: bool = False,
     ) -> None:
         r"""
         Initializes the Tracking object.
@@ -72,6 +75,8 @@ class Tracking(AbsSave):
             tracks_hdf5 (str): The path to the hdf5 file where a Tracking instance was saved.
             type (str): The type of measurement campaign. Either absorption or freesky.
         """
+
+        self._compute_angular_res = compute_angular_res
 
         if label in ["above", "below"]:
             self._label = label
@@ -143,8 +148,8 @@ class Tracking(AbsSave):
         points_np = np.array(points)
 
         # Convert the results back to torch tensors if needed
-        tracks_tensor = Tensor(tracks_np)
-        points_tensor = Tensor(points_np)
+        tracks_tensor = torch.tensor(tracks_np, dtype=dtype_track, device=DEVICE)
+        points_tensor = torch.tensor(points_np, dtype=dtype_track, device=DEVICE)
 
         return tracks_tensor, points_tensor
 
@@ -178,7 +183,7 @@ class Tracking(AbsSave):
             theta_xy (Tensor): Muons' zenith angle in XZ and YZ plane.
         """
 
-        theta_xy = torch.empty([2, tracks.size()[0]])
+        theta_xy = torch.empty([2, tracks.size()[0]], dtype=dtype_track, device=DEVICE)
 
         theta_xy[0] = torch.atan(tracks[:, 0] / tracks[:, 2])
         theta_xy[1] = torch.atan(tracks[:, 1] / tracks[:, 2])
@@ -449,7 +454,7 @@ class Tracking(AbsSave):
         The angular error between the generated and reconstructed tracks.
         """
         if self._angular_error is None:
-            if self.hits.spatial_res is None:  # type: ignore
+            if (self.hits.spatial_res is None) | (self._compute_angular_res is False):  # type: ignore
                 self._angular_error = torch.zeros_like(self.theta)
             else:
                 self._angular_error = self.get_angular_error(self.theta)
@@ -462,7 +467,10 @@ class Tracking(AbsSave):
         angular error distribution.
         """
         if self._angular_res is None:
-            self._angular_res = self.angular_error.std().item()
+            if self._compute_angular_res:
+                self._angular_res = self.angular_error.std().item()
+            else:
+                self._angular_res = 0.0
         return self._angular_res
 
     @angular_res.setter
