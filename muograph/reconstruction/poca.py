@@ -6,6 +6,8 @@ from fastprogress import progress_bar
 import numpy as np
 
 from utils.save import AbsSave
+from utils.device import DEVICE
+from utils.params import dtype_track
 from volume.volume import Volume
 from tracking.tracking import TrackingMST
 from plotting.voxel import VoxelPlotting
@@ -159,7 +161,7 @@ class POCA(AbsSave, VoxelPlotting):
         P1, P2 = points_in[:], points_out[:]
         V1, V2 = tracks_in[:], tracks_out[:]
 
-        V3 = torch.tensor(cross(V2, V1))
+        V3 = torch.tensor(cross(V2, V1), dtype=dtype_track, device=DEVICE)
 
         if are_parallel(V1, V2):
             raise ValueError("Tracks are parallel or nearly parallel")
@@ -167,8 +169,6 @@ class POCA(AbsSave, VoxelPlotting):
         RES = P2 - P1
         LES = torch.transpose(torch.stack([V1, -V2, V3]), 0, 1)
         LES = torch.transpose(LES, -1, 1)
-
-        # ts = torch.linalg.solve(LES,RES)
 
         try:
             ts = torch.linalg.solve(LES, RES)
@@ -200,7 +200,9 @@ class POCA(AbsSave, VoxelPlotting):
         Returns:
             - poca points voxel indices as List[List[int]] with length n_mu.
         """
-        indices = torch.ones((len(poca_points), 3)) - 2
+        indices = (
+            torch.ones((len(poca_points), 3), dtype=torch.int16, device=DEVICE) - 2
+        )
 
         print("\nAssigning voxel to each POCA point:")
 
@@ -245,7 +247,9 @@ class POCA(AbsSave, VoxelPlotting):
          the number of poca points per voxel.
         """
 
-        n_poca_per_vox = torch.zeros(tuple(voi.n_vox_xyz))
+        n_poca_per_vox = torch.zeros(
+            tuple(voi.n_vox_xyz), device=DEVICE, dtype=torch.int16
+        )
 
         for i in range(voi.n_vox_xyz[2]):
             z_min = voi.xyz_min[2] + i * voi.vox_width
@@ -262,7 +266,7 @@ class POCA(AbsSave, VoxelPlotting):
                 ),
             )
 
-            n_poca_per_vox[:, :, i] = torch.tensor(H)
+            n_poca_per_vox[:, :, i] = torch.tensor(H, dtype=torch.int16)
 
         return n_poca_per_vox
 
