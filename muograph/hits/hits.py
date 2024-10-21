@@ -14,6 +14,8 @@ from plotting.params import (
     hist_figsize,
     labelsize,
 )
+from utils.params import dtype_hit, dtype_E
+from utils.device import DEVICE
 
 
 class Hits:
@@ -43,7 +45,7 @@ class Hits:
         plane_labels: Optional[Tuple[int, ...]] = None,
         csv_filename: Optional[str] = None,
         df: Optional[pd.DataFrame] = None,
-        spatial_res: Optional[Tensor] = None,
+        spatial_res: Optional[Tuple[float, float, float]] = None,
         energy_range: Optional[Tuple[float, float]] = None,
         efficiency: float = 1.0,
         input_unit: str = "mm",
@@ -59,8 +61,14 @@ class Hits:
             efficiency (float): The detectors panels efficiency. All panels are assumed to have the same efficiency.
             input_unit (str): The unit of the input data. Data will be rescaled to mm.
         """
+
         # Detector panel parameters
-        self.spatial_res = spatial_res  # in mm
+        self.spatial_res = (
+            torch.tensor(spatial_res, dtype=dtype_hit, device=DEVICE)
+            if spatial_res is not None
+            else torch.zeros(3, dtype=dtype_hit, device=DEVICE)
+        )
+
         self.efficiency = efficiency  # in %
         if (efficiency > 1.0) | (efficiency < 0.0):
             raise ValueError("Efficency must be positive and < 1.")
@@ -98,7 +106,7 @@ class Hits:
             )
             self._filter_events(energy_mask)
 
-        # detector efficiency
+        # Detector efficiency
         if (self.efficiency < 0.0) | (self.efficiency > 1.0):
             raise ValueError("Panels efficiency must be in [0., 1.].")
 
@@ -139,7 +147,7 @@ class Hits:
         # Extract plane count and validate columns
 
         n_plane = len(plane_labels)  # type: ignore
-        hits = torch.zeros((3, n_plane, len(df)))
+        hits = torch.zeros((3, n_plane, len(df)), dtype=dtype_hit, device=DEVICE)
 
         for i, plane in enumerate(plane_labels):  # type: ignore
             x_col = f"X{plane}"
@@ -151,9 +159,15 @@ class Hits:
                     f"Missing columns for plane {plane}: {x_col}, {y_col}, {z_col}"
                 )
 
-            hits[0, i, :] = torch.tensor(df[x_col].values)
-            hits[1, i, :] = torch.tensor(df[y_col].values)
-            hits[2, i, :] = torch.tensor(df[z_col].values)
+            hits[0, i, :] = torch.tensor(
+                df[x_col].values, dtype=dtype_hit, device=DEVICE
+            )
+            hits[1, i, :] = torch.tensor(
+                df[y_col].values, dtype=dtype_hit, device=DEVICE
+            )
+            hits[2, i, :] = torch.tensor(
+                df[z_col].values, dtype=dtype_hit, device=DEVICE
+            )
 
         return hits
 
@@ -176,7 +190,7 @@ class Hits:
             raise KeyError(
                 "Column 'E' not found in the DataFrame. Muon energy set to 0."
             )
-        return torch.tensor(df["E"].values)
+        return torch.tensor(df["E"].values, dtype=dtype_E, device=DEVICE)
 
     @staticmethod
     def get_panels_labels_from_df(df: pd.DataFrame) -> Tuple[int, ...]:
@@ -211,12 +225,15 @@ class Hits:
         Returns:
             reco_hits (Tensor): The reconstructed hits, with size (3, n_plane, mu)
         """
-        reco_hits = torch.ones_like(gen_hits) * gen_hits
+        reco_hits = torch.ones_like(gen_hits, dtype=dtype_hit, device=DEVICE) * gen_hits
 
         for i in range(spatial_res.size()[0]):
             if spatial_res[i] != 0.0:
                 reco_hits[i] += torch.normal(
-                    mean=0.0, std=torch.ones_like(reco_hits[i]) * spatial_res[i]
+                    mean=0.0,
+                    std=torch.ones_like(reco_hits[i]) * spatial_res[i],
+                    # dtype=dtype_hit,
+                    # device=DEVICE
                 )
 
         return reco_hits
@@ -239,7 +256,7 @@ class Hits:
         """
 
         # Probability for a muon to leave hit on a detector panel
-        p = torch.rand(gen_hits.size()[1:])
+        p = torch.rand(gen_hits.size()[1:], device=DEVICE, dtype=dtype_hit)
 
         muon_wise_eff = torch.where(p < efficiency, 1, 0)
 
@@ -369,11 +386,8 @@ class Hits:
         if self.spatial_res is None:
             return self.gen_hits
         elif self._reco_hits is None:
-            self._reco_hits = (
-                self.get_reco_hits_from_gen_hits(
-                    gen_hits=self.gen_hits, spatial_res=self.spatial_res
-                )
-                * self._unit_coef[self.input_unit]
+            self._reco_hits = self.get_reco_hits_from_gen_hits(
+                gen_hits=self.gen_hits, spatial_res=self.spatial_res
             )
         return self._reco_hits
 
