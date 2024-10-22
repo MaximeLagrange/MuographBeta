@@ -72,7 +72,10 @@ class VoxelPlotting:
             Tuple[float, float]: The figure size (width, height).
         """
 
-        dx, dy = voi.dxyz[dims[0]], voi.dxyz[dims[1]]
+        dx, dy = (
+            voi.dxyz[dims[0]].detach().cpu().numpy(),
+            voi.dxyz[dims[1]].detach().cpu().numpy(),
+        )
 
         # Compute xy_ratio as a list: larger dimension normalized to 1, and the other scaled accordingly
         xy_ratio = [min(dx / dy, 1.0), min(dy / dx, 1.0)]
@@ -267,12 +270,12 @@ class VoxelPlotting:
                 "x_label": "x",  # The label of the x axis (on the plot)
                 "y_label": "y",  # The label of the y axis (on the plot)
                 "extent": (
-                    voi.xyz_min[0],
-                    voi.xyz_max[0],
-                    voi.xyz_min[1],
-                    voi.xyz_max[1],
+                    voi.xyz_min[0].detach().cpu().numpy(),
+                    voi.xyz_max[0].detach().cpu().numpy(),
+                    voi.xyz_min[1].detach().cpu().numpy(),
+                    voi.xyz_max[1].detach().cpu().numpy(),
                 ),  # The left, right, bottom, top extent of the 2D slice.
-                "x_data": xy_data.sum(dim=1)
+                "x_data": xy_data.sum(dim=1).detach().cpu().numpy()
                 / xy_data.size()[
                     1
                 ],  # The 2D slice predictions averaged along the x axis (on the plot)
@@ -298,10 +301,10 @@ class VoxelPlotting:
                 "x_label": "x",
                 "y_label": "z",
                 "extent": (
-                    voi.xyz_min[0],
-                    voi.xyz_max[0],
-                    voi.xyz_min[2],
-                    voi.xyz_max[2],
+                    voi.xyz_min[0].detach().cpu().numpy(),
+                    voi.xyz_max[0].detach().cpu().numpy(),
+                    voi.xyz_min[2].detach().cpu().numpy(),
+                    voi.xyz_max[2].detach().cpu().numpy(),
                 ),
                 "x_data": xy_data.sum(dim=1) / xy_data.size()[1],
                 "y_data": xy_data.sum(dim=0) / xy_data.size()[0],
@@ -317,10 +320,10 @@ class VoxelPlotting:
                 "x_label": "y",
                 "y_label": "z",
                 "extent": (
-                    voi.xyz_min[1],
-                    voi.xyz_max[1],
-                    voi.xyz_min[2],
-                    voi.xyz_max[2],
+                    voi.xyz_min[1].detach().cpu().numpy(),
+                    voi.xyz_max[1].detach().cpu().numpy(),
+                    voi.xyz_min[2].detach().cpu().numpy(),
+                    voi.xyz_max[2].detach().cpu().numpy(),
                 ),
                 "x_data": xy_data.sum(dim=1) / xy_data.size()[1],
                 "y_data": xy_data.sum(dim=0) / xy_data.size()[0],
@@ -341,7 +344,6 @@ class VoxelPlotting:
         figsize = VoxelPlotting.get_fig_size(
             voi=voi, nrows=1, ncols=1, dims=dim_mapping[dim]["xy_dims"], scale=scale
         )
-
         # Create the main figure
         fig, ax = plt.subplots(figsize=figsize)
 
@@ -351,11 +353,11 @@ class VoxelPlotting:
 
         # Plot the 2D slice predictions
         im = ax.imshow(
-            xy_data.T,
+            xy_data.T.detach().cpu().numpy(),
             cmap=cmap,
             origin="lower",
-            vmin=vmin,
-            vmax=vmax,
+            vmin=vmin.detach().cpu().numpy(),
+            vmax=vmax.detach().cpu().numpy(),
             extent=dim_mapping[dim]["extent"],
         )
 
@@ -394,26 +396,30 @@ class VoxelPlotting:
         # Plot the predictions averaged along the x and y axis
         if xyz_voxel_pred_uncs is None:
             ax_histx.scatter(
-                dim_mapping[dim]["x_vox_pos"], dim_mapping[dim]["x_data"], marker="."
+                dim_mapping[dim]["x_vox_pos"].detach().cpu().numpy(),
+                dim_mapping[dim]["x_data"],
+                marker=".",
             )
             ax_histy.scatter(
-                dim_mapping[dim]["y_data"], dim_mapping[dim]["y_vox_pos"], marker="."
+                dim_mapping[dim]["y_data"].detach().cpu().numpy(),
+                dim_mapping[dim]["y_vox_pos"].detach().cpu().numpy(),
+                marker=".",
             )
 
         else:
             # Plot uncertainties if available
             ax_histx.errorbar(
-                x=dim_mapping[dim]["x_vox_pos"],
-                y=dim_mapping[dim]["x_data"],
+                x=dim_mapping[dim]["x_vox_pos"].detach().cpu().numpy(),
+                y=dim_mapping[dim]["x_data"].detach().cpu().numpy(),
                 xerr=0,
-                yerr=dim_mapping[dim]["x_data_uncs"],
+                yerr=dim_mapping[dim]["x_data_uncs"].detach().cpu().numpy(),
                 marker=".",
                 alpha=0.6,
             )
             ax_histy.errorbar(
-                x=dim_mapping[dim]["y_data"],
-                y=dim_mapping[dim]["y_vox_pos"],
-                xerr=dim_mapping[dim]["y_data_uncs"],
+                x=dim_mapping[dim]["y_data"].detach().cpu().numpy(),
+                y=dim_mapping[dim]["y_vox_pos"].detach().cpu().numpy(),
+                xerr=dim_mapping[dim]["y_data_uncs"].detach().cpu().numpy(),
                 yerr=0,
                 marker=".",
                 alpha=0.6,
@@ -718,15 +724,18 @@ class VoxelPlotting:
 
         # Plot flattened predictions
         ax.hist(
-            xyz_voxel_preds.numpy().ravel(), bins=n_bins, range=range, histtype="step"
+            xyz_voxel_preds.detach().cpu().numpy().ravel(),
+            bins=n_bins,
+            range=range,
+            histtype="step",
         )
 
         # Plot predictions mean
-        mean = xyz_voxel_preds.mean().numpy()
+        mean = xyz_voxel_preds.mean().detach().cpu().numpy()
         ax.axvline(x=mean, label=f"Mean = {mean:.3f}", color="red")
 
         # Highlight 1 sigma region
-        std = xyz_voxel_preds.std().numpy()
+        std = xyz_voxel_preds.std().detach().cpu().numpy()
         mask_1sigma = (xyz_voxel_preds > mean - std) & (xyz_voxel_preds < mean + std)
         ax.hist(
             xyz_voxel_preds[mask_1sigma],
