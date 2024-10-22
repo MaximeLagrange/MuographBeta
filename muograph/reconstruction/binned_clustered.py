@@ -40,6 +40,7 @@ class BCA(POCA):
         voi: Volume,
         tracking: TrackingMST = None,
         output_dir: Optional[str] = None,
+        save: bool = True,
     ) -> None:
         r"""
         Initializes the BCA object with an instance of the TrackingMST class.
@@ -53,7 +54,7 @@ class BCA(POCA):
         """
 
         super().__init__(
-            output_dir=output_dir, tracking=tracking, voi=voi, poca_file=None
+            output_dir=output_dir, tracking=tracking, voi=voi, poca_file=None, save=save
         )
         self.bca_indices: Tensor = deepcopy(self.poca_indices)
         self.bca_poca_points: Tensor = deepcopy(self.poca_points)
