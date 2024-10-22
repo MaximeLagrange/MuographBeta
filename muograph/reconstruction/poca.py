@@ -49,6 +49,7 @@ class POCA(AbsSave, VoxelPlotting):
         voi: Optional[Volume] = None,
         poca_file: Optional[str] = None,
         output_dir: Optional[str] = None,
+        save: bool = True,
     ) -> None:
         r"""
         Initializes the POCA object with either an instance of the TrackingMST class or a
@@ -63,7 +64,7 @@ class POCA(AbsSave, VoxelPlotting):
             - output_dir (Optional[str]): Path to a directory where to save POCA attributes
             in a hdf5 file.
         """
-        AbsSave.__init__(self, output_dir)
+        AbsSave.__init__(self, output_dir=output_dir, save=save)
         VoxelPlotting.__init__(self, voi)
 
         if tracking is None and poca_file is None:
@@ -83,10 +84,11 @@ class POCA(AbsSave, VoxelPlotting):
                 self._filter_pocas(self.mask_in_voi)
 
             # Save attributes to hdf5
-            if voi is None:
-                self.save_attr(["poca_points"], self.output_dir, filename="poca")
-            else:
-                self.save_attr(self._vars_to_save, self.output_dir, filename="poca")
+            if save:
+                if voi is None:
+                    self.save_attr(["poca_points"], self.output_dir, filename="poca")
+                else:
+                    self.save_attr(self._vars_to_save, self.output_dir, filename="poca")
 
         # Load poca attributes from hdf5 if poca_file is provided
         elif tracking is None and poca_file is not None:
@@ -163,7 +165,11 @@ class POCA(AbsSave, VoxelPlotting):
         P1, P2 = points_in[:], points_out[:]
         V1, V2 = tracks_in[:], tracks_out[:]
 
-        V3 = torch.tensor(cross(V2, V1), dtype=dtype_track, device=DEVICE)
+        V3 = torch.tensor(
+            cross(V2.detach().cpu().numpy(), V1.detach().cpu().numpy()),
+            dtype=dtype_track,
+            device=DEVICE,
+        )
 
         if are_parallel(V1, V2):
             raise ValueError("Tracks are parallel or nearly parallel")
@@ -293,12 +299,18 @@ class POCA(AbsSave, VoxelPlotting):
             mask_slice = (poca_points[:, 2] >= z_min) & ((poca_points[:, 2] <= z_max))
 
             H, _, __ = np.histogram2d(
-                poca_points[mask_slice, 0].numpy(),
-                poca_points[mask_slice, 1].numpy(),
+                poca_points[mask_slice, 0].detach().cpu().numpy(),
+                poca_points[mask_slice, 1].detach().cpu().numpy(),
                 bins=(int(voi.n_vox_xyz[0]), int(voi.n_vox_xyz[1])),
                 range=(
-                    (voi.xyz_min[0], voi.xyz_max[0]),
-                    (voi.xyz_min[1], voi.xyz_max[1]),
+                    (
+                        voi.xyz_min[0].detach().cpu().numpy(),
+                        voi.xyz_max[0].detach().cpu().numpy(),
+                    ),
+                    (
+                        voi.xyz_min[1].detach().cpu().numpy(),
+                        voi.xyz_max[1].detach().cpu().numpy(),
+                    ),
                 ),
             )
 
