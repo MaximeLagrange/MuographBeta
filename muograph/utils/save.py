@@ -18,7 +18,7 @@ class AbsSave:
     saving/loading.
     """
 
-    def __init__(self, output_dir: Optional[str] = None) -> None:
+    def __init__(self, output_dir: Optional[str] = None, save: bool = True) -> None:
         """
         Initializes the AbsSave object and ensures the output directory exists.
 
@@ -29,15 +29,17 @@ class AbsSave:
             output_dir = default_output_dir
 
         self.output_dir = Path(output_dir)
-        try:
-            self.create_directory(self.output_dir)
-        except FileNotFoundError:
-            print(f"Directory not found: {self.output_dir}")
-        except PermissionError:
-            print(f"Permission denied: Could not create {self.output_dir}")
-        except OSError as e:
-            # General fallback for other OS-related errors, but at least it's still specific.
-            print(f"OS error occurred while creating {self.output_dir}: {e}")
+
+        if save:
+            try:
+                self.create_directory(self.output_dir)
+            except FileNotFoundError:
+                print(f"Directory not found: {self.output_dir}")
+            except PermissionError:
+                print(f"Permission denied: Could not create {self.output_dir}")
+            except OSError as e:
+                # General fallback for other OS-related errors, but at least it's still specific.
+                print(f"OS error occurred while creating {self.output_dir}: {e}")
 
     @staticmethod
     def create_directory(directory: Path) -> None:
@@ -71,7 +73,7 @@ class AbsSave:
             for attr in attributes:
                 value = getattr(self, attr)
                 if isinstance(value, Tensor):
-                    f.create_dataset(attr, data=value.numpy())
+                    f.create_dataset(attr, data=value.detach().cpu().numpy())
                 elif isinstance(value, (np.ndarray, float)):
                     f.create_dataset(attr, data=value)
                 elif isinstance(value, str):
