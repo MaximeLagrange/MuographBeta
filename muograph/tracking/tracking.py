@@ -92,7 +92,7 @@ class Tracking(AbsSave):
                 "Provide either 'absorption' or 'freesky' as 'type' argument."
             )
 
-        super().__init__(output_dir)
+        super().__init__(output_dir=output_dir, save=save)
 
         if (hits is not None) & (tracks_hdf5 is None):
             self.hits = hits
@@ -123,7 +123,7 @@ class Tracking(AbsSave):
         from skspatial.objects import Line, Points
         from joblib import Parallel, delayed
 
-        hits = torch.transpose(hits, 0, 1).numpy()
+        hits = torch.transpose(hits, 0, 1).detach().cpu().numpy()
 
         def fit_line(hits_ev):  # type: ignore
             fit = Line.best_fit(Points(hits_ev))
@@ -248,19 +248,21 @@ class Tracking(AbsSave):
         )
 
         # Zenith angle
-        axs[0].hist(self.theta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        axs[0].hist(
+            self.theta.detach().cpu().numpy() * 180 / math.pi, bins=n_bins, alpha=alpha
+        )
         axs[0].axvline(
-            x=self.theta.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.theta.mean().numpy() * 180 / math.pi:.1f}",
+            x=self.theta.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.theta.mean().detach().cpu().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
         axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]", fontweight="bold")
 
         # Energy
-        axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
+        axs[1].hist(self.E.detach().cpu().numpy(), bins=n_bins, alpha=alpha, log=True)
         axs[1].axvline(
-            x=self.E.mean().numpy(),
-            label=f"mean = {self.E.mean().numpy():.3E}",
+            x=self.E.mean().detach().cpu().numpy(),
+            label=f"mean = {self.E.mean().detach().cpu().numpy():.3E}",
             color="red",
         )
         axs[1].set_xlabel(r" Energy [MeV]", fontweight="bold")
@@ -304,24 +306,28 @@ class Tracking(AbsSave):
 
         # Fig title
         fig.suptitle(
-            f"Batch of {self.tracks.size()[0]} muons\nAngular resolution = {self.angular_error.std().numpy() * 180 / math.pi:.2f} deg",
+            f"Batch of {self.tracks.size()[0]} muons\nAngular resolution = {self.angular_error.std().detach().cpu().numpy() * 180 / math.pi:.2f} deg",
             fontsize=titlesize,
             fontweight="bold",
         )
 
         # Projected zenith angle error
-        ax.hist(self.angular_error.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        ax.hist(
+            self.angular_error.detach().cpu().numpy() * 180 / math.pi,
+            bins=n_bins,
+            alpha=alpha,
+        )
 
         # Mean angular error
         ax.axvline(
-            x=self.angular_error.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.angular_error.mean().numpy() * 180 / math.pi:.1f}",
+            x=self.angular_error.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.angular_error.mean().detach().cpu().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
 
         # Highlight 1 sigma region
-        std = self.angular_error.std().numpy() * 180 / math.pi
-        mean = self.angular_error.mean().numpy() * 180 / math.pi
+        std = self.angular_error.std().detach().cpu().numpy() * 180 / math.pi
+        mean = self.angular_error.mean().detach().cpu().numpy() * 180 / math.pi
 
         ax.axvline(x=mean - std, color="green")
         ax.axvline(x=mean + std, color="green", label=r"$\pm 1 \sigma$")
@@ -674,30 +680,37 @@ class TrackingMST(AbsSave):
         )
 
         # Zenith angle
-        axs[0].hist(self.theta_in.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        axs[0].hist(
+            self.theta_in.detach().cpu().numpy() * 180 / math.pi,
+            bins=n_bins,
+            alpha=alpha,
+        )
         axs[0].axvline(
-            x=self.theta_in.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.theta_in.mean().numpy() * 180 / math.pi:.1f}",
+            x=self.theta_in.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.theta_in.mean().detach().cpu().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
         axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]", fontweight="bold")
 
         # Energy
-        axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
+        axs[1].hist(self.E.detach().cpu().numpy(), bins=n_bins, alpha=alpha, log=True)
         axs[1].axvline(
-            x=self.E.mean().numpy(),
-            label=f"mean = {self.E.mean().numpy():.3E}",
+            x=self.E.mean().detach().cpu().numpy(),
+            label=f"mean = {self.E.mean().detach().cpu().numpy():.3E}",
             color="red",
         )
         axs[1].set_xlabel(r" Energy [MeV]", fontweight="bold")
 
         # Scattering angle
         axs[2].hist(
-            self.dtheta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha, log=True
+            self.dtheta.detach().cpu().numpy() * 180 / math.pi,
+            bins=n_bins,
+            alpha=alpha,
+            log=True,
         )
         axs[2].axvline(
-            x=self.dtheta.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.dtheta.mean().numpy() * 180 / math.pi:.3E}",
+            x=self.dtheta.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.dtheta.mean().detach().cpu().numpy() * 180 / math.pi:.3E}",
             color="red",
         )
         axs[2].set_xlabel(r" Scattering angle $\delta\theta$ [deg]", fontweight="bold")
