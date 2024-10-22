@@ -48,6 +48,8 @@ def apply_gaussian_filter(
     if ndim != len(sigma):
         raise ValueError("`sigma` must have one element for each dimension of `x`.")
     elif isinstance(x, Tensor):
+        if x.dtype not in [torch.float16, torch.float32, torch.float64]:
+            x = torch.ones_like(x, dtype=torch.float32) * x
         return torch.tensor(gaussian_filter(x.numpy(), sigma=sigma))
     elif isinstance(x, np.ndarray):
         return gaussian_filter(x, sigma=sigma)

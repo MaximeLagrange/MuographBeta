@@ -2,7 +2,7 @@ import torch
 
 dtype_hit = torch.float32
 
-dtype_track = torch.float64
+dtype_track = torch.float32
 
 dtype_n = torch.int16
 
