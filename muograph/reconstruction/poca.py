@@ -29,6 +29,8 @@ class POCA(AbsSave, VoxelPlotting):
     _poca_indices: Optional[Tensor] = None  # (mu, 3)
     _mask_in_voi: Optional[Tensor] = None  # (mu)
 
+    _batch_size: int = 1024
+
     _vars_to_save = [
         "poca_points",
         "n_poca_per_vox",
@@ -193,7 +195,9 @@ class POCA(AbsSave, VoxelPlotting):
         return M
 
     @staticmethod
-    def assign_voxel_to_pocas(poca_points: Tensor, voi: Volume) -> List[List[int]]:
+    def assign_voxel_to_pocas(
+        poca_points: Tensor, voi: Volume, batch_size: int
+    ) -> List[List[int]]:
         """
         Get the indinces of the voxel corresponding to each poca point.
 
@@ -205,37 +209,65 @@ class POCA(AbsSave, VoxelPlotting):
             - poca points voxel indices as List[List[int]] with length n_mu.
         """
         indices = (
-            torch.ones((len(poca_points), 3), dtype=torch.int16, device=DEVICE) - 2
+            torch.ones(
+                (len(poca_points), 3), dtype=torch.int16, device=poca_points.device
+            )
+            * -1
         )
 
-        print("\nAssigning voxel to each POCA point:")
+        # Process POCA points in batches
+        for start in progress_bar(range(0, len(poca_points), batch_size)):
+            end = min(start + batch_size, len(poca_points))
+            poca_batch = poca_points[start:end]  # Batch size is (batch_size, 3)
 
-        for i in progress_bar(range(len(poca_points))):
-            mask_vox_x1 = poca_points[i, 0] >= voi.voxel_edges[:, :, :, 0, 0]
-            mask_vox_x2 = poca_points[i, 0] <= voi.voxel_edges[:, :, :, 1, 0]
+            voxel_index = torch.full(
+                (poca_batch.size(0), 3), -1, dtype=torch.int16, device=poca_batch.device
+            )
 
-            mask_vox_y1 = poca_points[i, 1] >= voi.voxel_edges[:, :, :, 0, 1]
-            mask_vox_y2 = poca_points[i, 1] <= voi.voxel_edges[:, :, :, 1, 1]
+            for dim in range(3):  # Loop over x, y, z dimensions
+                # Extract lower and upper bounds for voxels along the current dimension
+                lower_bounds = voi.voxel_edges[
+                    ..., 0, dim
+                ]  # Shape: (vox_x, vox_y, vox_z)
+                upper_bounds = voi.voxel_edges[
+                    ..., 1, dim
+                ]  # Shape: (vox_x, vox_y, vox_z)
 
-            mask_vox_z1 = poca_points[i, 2] >= voi.voxel_edges[:, :, :, 0, 2]
-            mask_vox_z2 = poca_points[i, 2] <= voi.voxel_edges[:, :, :, 1, 2]
+                # Broadcast comparison across the batch
+                mask_lower = (
+                    poca_batch[:, dim].unsqueeze(1).unsqueeze(1).unsqueeze(1)
+                    >= lower_bounds
+                )  # Shape: (batch_size, vox_x, vox_y, vox_z)
+                mask_upper = (
+                    poca_batch[:, dim].unsqueeze(1).unsqueeze(1).unsqueeze(1)
+                    <= upper_bounds
+                )  # Shape: (batch_size, vox_x, vox_y, vox_z)
 
-            mask_x_ = mask_vox_x1 & mask_vox_x2
-            mask_y_ = mask_vox_y1 & mask_vox_y2
-            mask_z_ = mask_vox_z1 & mask_vox_z2
+                valid_voxels = (
+                    mask_lower & mask_upper
+                )  # Shape: (batch_size, vox_x, vox_y, vox_z)
 
-            mask_vox = mask_x_ & mask_y_ & mask_z_
+                # Find the first valid voxel index for each POCA point in the batch
+                valid_indices = valid_voxels.nonzero(
+                    as_tuple=False
+                )  # Shape: (num_valid_points, 4) - (batch_idx, x_idx, y_idx, z_idx)
 
-            indice = (mask_vox == 1).nonzero()
+                # Remove the loop by assigning voxel indices for the whole batch at once
+                # Get the first valid index for each POCA point using a mask
+                first_valid_indices = valid_indices[:, 1 + dim].view(
+                    -1
+                )  # Extract indices for current dim (x_idx, y_idx, z_idx)
 
-            # because of float precision (I assume?), more than 1 vox can be triggered.
-            # if it is the case, only keep one voxel
-            if len(indice) == 1:
-                indices[i] = indice
-            elif len(indice) > 1:
-                indices[i] = indice[0]
+                # Ensure that each POCA point gets a valid index
+                batch_indices = valid_indices[
+                    :, 0
+                ]  # Get the batch indices corresponding to each POCA point
 
-        return indices.int()
+                # Use advanced indexing to assign voxel indices
+                voxel_index[batch_indices, dim] = first_valid_indices.to(torch.int16)
+
+            indices[start:end] = voxel_index
+        return indices
 
     @staticmethod
     def compute_n_poca_per_vox(poca_points: Tensor, voi: Volume) -> Tensor:
@@ -334,7 +366,7 @@ class POCA(AbsSave, VoxelPlotting):
     def poca_indices(self) -> Tensor:
         if self._poca_indices is None:
             self._poca_indices = self.assign_voxel_to_pocas(
-                poca_points=self.poca_points, voi=self.voi
+                poca_points=self.poca_points, voi=self.voi, batch_size=self._batch_size
             )
         return self._poca_indices
 
