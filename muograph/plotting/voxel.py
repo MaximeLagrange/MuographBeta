@@ -105,6 +105,11 @@ class VoxelPlotting:
             - (`Tensor`) The 2D slice.
         """
 
+        if xyz_voxel_preds.dtype not in [torch.float16, torch.float32, torch.float64]:
+            xyz_voxel_preds = (
+                torch.ones_like(xyz_voxel_preds, dtype=torch.float32) * xyz_voxel_preds
+            )
+
         if isinstance(voi_slice, int):  # type: ignore
             if dim == 2:
                 return xyz_voxel_preds[:, :, voi_slice]
