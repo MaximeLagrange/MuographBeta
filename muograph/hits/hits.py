@@ -324,7 +324,7 @@ class Hits:
 
         # Set figure title
         fig.suptitle(
-            f"Muon hits on plane {plane_label} \nat z = {hits[2,plane_label,0]:.0f} [{d_unit}]",
+            f"Muon hits on plane {plane_label} \nat z = {hits[2,plane_label,:].mean(dim=-1):.0f} [{d_unit}]",
             fontweight="bold",
             y=1,
         )
