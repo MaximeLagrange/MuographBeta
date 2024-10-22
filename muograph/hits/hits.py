@@ -88,7 +88,12 @@ class Hits:
             self._df = self.get_data_frame_from_csv(csv_filename)
 
         elif df is not None:
+            self.input_unit = input_unit
+            if input_unit not in ["mm", "cm", "m", "dm"]:
+                raise ValueError("Input unit must be mm, cm, dm or m")
+
             self._df = df
+
         else:
             raise ValueError("Either csv_filename or df must be provided.")
 
@@ -310,8 +315,8 @@ class Hits:
 
         # Plot hits as 2D histogram
         h = ax.hist2d(
-            hits[0, plane_label].numpy(),
-            hits[1, plane_label].numpy(),
+            hits[0, plane_label].detach().cpu().numpy(),
+            hits[1, plane_label].detach().cpu().numpy(),
             bins=(bins_x, bins_y),
         )
 
