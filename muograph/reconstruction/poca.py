@@ -170,6 +170,10 @@ class POCA(AbsSave, VoxelPlotting):
         LES = torch.transpose(torch.stack([V1, -V2, V3]), 0, 1)
         LES = torch.transpose(LES, -1, 1)
 
+        if LES.dtype != RES.dtype:
+            LES = torch.ones_like(LES, dtype=torch.float32) * LES
+            RES = torch.ones_like(RES, dtype=torch.float32) * RES
+
         try:
             ts = torch.linalg.solve(LES, RES)
         except RuntimeError as e:
