@@ -14,6 +14,7 @@ from reconstruction.poca import POCA
 from volume.volume import Volume
 
 value_type = Union[float, partial, Tuple[float, float], bool, int]
+bca_params_type = Dict[str, value_type]
 
 
 class BCA(POCA):
@@ -23,7 +24,7 @@ class BCA(POCA):
     _xyz_voxel_pred: Optional[Tensor] = None  # (Nx, Ny, Nz)
     _recompute_preds: bool = True
 
-    _bca_params: Dict[str, value_type] = {
+    _bca_params: bca_params_type = {
         "n_max_per_vox": 10,
         "n_min_per_vox": 3,
         "score_method": partial(np.quantile, q=0.5),
@@ -471,8 +472,8 @@ class BCA(POCA):
         metric = "metric_{}_".format(
             get_partial_name_args(self.bca_params["metric_method"])  # type: ignore
         )
-        dtheta = "{:.2f}_{:.2f}_rad_".format(
-            self.bca_params["dtheta_range"][0], self.bca_params["dtheta_range"][1]  # type: ignore
+        dtheta = "{:.1f}_{:.1f}_mrad_".format(
+            self.bca_params["dtheta_range"][0] * 1000, self.bca_params["dtheta_range"][1] * 1000  # type: ignore
         )
         dp = "{:.0f}_{:.0f}_MeV_".format(
             self.bca_params["p_range"][0], self.bca_params["p_range"][1]  # type: ignore
@@ -483,7 +484,6 @@ class BCA(POCA):
         use_p = "use_p_{}".format(self.bca_params["use_p"])
 
         bca_name = method + metric + dtheta + dp + n_min_max + use_p
-
         return bca_name
 
     @property
