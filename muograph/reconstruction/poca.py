@@ -7,7 +7,7 @@ import numpy as np
 
 from utils.save import AbsSave
 from utils.device import DEVICE
-from utils.params import dtype_track
+from utils.params import dtype_track, dtype_n
 from volume.volume import Volume
 from tracking.tracking import TrackingMST
 from plotting.voxel import VoxelPlotting
@@ -215,9 +215,7 @@ class POCA(AbsSave, VoxelPlotting):
             - poca points voxel indices as List[List[int]] with length n_mu.
         """
         indices = (
-            torch.ones(
-                (len(poca_points), 3), dtype=torch.int16, device=poca_points.device
-            )
+            torch.ones((len(poca_points), 3), dtype=dtype_n, device=poca_points.device)
             * -1
         )
 
@@ -227,7 +225,7 @@ class POCA(AbsSave, VoxelPlotting):
             poca_batch = poca_points[start:end]  # Batch size is (batch_size, 3)
 
             voxel_index = torch.full(
-                (poca_batch.size(0), 3), -1, dtype=torch.int16, device=poca_batch.device
+                (poca_batch.size(0), 3), -1, dtype=dtype_n, device=poca_batch.device
             )
 
             for dim in range(3):  # Loop over x, y, z dimensions
@@ -270,7 +268,7 @@ class POCA(AbsSave, VoxelPlotting):
                 ]  # Get the batch indices corresponding to each POCA point
 
                 # Use advanced indexing to assign voxel indices
-                voxel_index[batch_indices, dim] = first_valid_indices.to(torch.int16)
+                voxel_index[batch_indices, dim] = first_valid_indices.to(dtype_n)
 
             indices[start:end] = voxel_index
         return indices
@@ -289,9 +287,7 @@ class POCA(AbsSave, VoxelPlotting):
          the number of poca points per voxel.
         """
 
-        n_poca_per_vox = torch.zeros(
-            tuple(voi.n_vox_xyz), device=DEVICE, dtype=torch.int16
-        )
+        n_poca_per_vox = torch.zeros(tuple(voi.n_vox_xyz), device=DEVICE, dtype=dtype_n)
 
         for i in range(voi.n_vox_xyz[2]):
             z_min = voi.xyz_min[2] + i * voi.vox_width
@@ -314,7 +310,7 @@ class POCA(AbsSave, VoxelPlotting):
                 ),
             )
 
-            n_poca_per_vox[:, :, i] = torch.tensor(H, dtype=torch.int16)
+            n_poca_per_vox[:, :, i] = torch.tensor(H, dtype=dtype_n)
 
         return n_poca_per_vox
 
