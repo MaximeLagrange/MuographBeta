@@ -129,8 +129,8 @@ class BCA(POCA):
         """
 
         # Initialize hit counters
-        nhit = torch.zeros(voi.n_vox_xyz, dtype=torch.int64)
-        nhit_cut = torch.zeros(voi.n_vox_xyz, dtype=torch.int64)
+        nhit = torch.zeros(voi.n_vox_xyz, dtype=torch.int64, device=DEVICE)
+        nhit_cut = torch.zeros(voi.n_vox_xyz, dtype=torch.int64, device=DEVICE)
 
         flat_vox_indices = (
             bca_indices[:, 0] * (voi.n_vox_xyz[1] * voi.n_vox_xyz[2])
