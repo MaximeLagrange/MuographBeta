@@ -17,6 +17,8 @@ from plotting.params import (
 from utils.params import dtype_hit, dtype_E
 from utils.device import DEVICE
 
+allowed_d_units = ["m", "cm", "mm", "dm"]
+
 
 class Hits:
     r"""
@@ -82,14 +84,14 @@ class Hits:
 
         if csv_filename is not None:
             self.input_unit = input_unit
-            if input_unit not in ["mm", "cm", "m", "dm"]:
+            if input_unit not in allowed_d_units:
                 raise ValueError("Input unit must be mm, cm, dm or m")
 
             self._df = self.get_data_frame_from_csv(csv_filename)
 
         elif df is not None:
             self.input_unit = input_unit
-            if input_unit not in ["mm", "cm", "m", "dm"]:
+            if input_unit not in allowed_d_units:
                 raise ValueError("Input unit must be mm, cm, dm or m")
 
             self._df = df
