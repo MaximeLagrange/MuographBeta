@@ -154,39 +154,39 @@ class VoxelPlotting:
         if isinstance(voi_slice, int):
             if dim == 2:
                 return (
-                    voi.voxel_edges[0, 0, voi_slice, 0, dim],
-                    voi.voxel_edges[0, 0, voi_slice, 1, dim],
+                    voi.voxel_edges[0, 0, voi_slice, 0, dim].detach().cpu().item(),
+                    voi.voxel_edges[0, 0, voi_slice, 1, dim].detach().cpu().item(),
                 )
 
             elif dim == 1:
                 return (
-                    voi.voxel_edges[0, voi_slice, 0, 0, dim],
-                    voi.voxel_edges[0, voi_slice, 0, 1, dim],
+                    voi.voxel_edges[0, voi_slice, 0, 0, dim].detach().cpu().item(),
+                    voi.voxel_edges[0, voi_slice, 0, 1, dim].detach().cpu().item(),
                 )
 
             elif dim == 0:
                 return (
-                    voi.voxel_edges[voi_slice, 0, 0, 0, dim],
-                    voi.voxel_edges[voi_slice, 0, 0, 1, dim],
+                    voi.voxel_edges[voi_slice, 0, 0, 0, dim].detach().cpu().item(),
+                    voi.voxel_edges[voi_slice, 0, 0, 1, dim].detach().cpu().item(),
                 )
 
         elif isinstance(voi_slice, tuple) and len(voi_slice) == 2:
             if dim == 2:
                 return (
-                    voi.voxel_edges[0, 0, voi_slice[0], 0, 2],
-                    voi.voxel_edges[0, 0, voi_slice[-1], 1, 2],
+                    voi.voxel_edges[0, 0, voi_slice[0], 0, 2].detach().cpu().item(),
+                    voi.voxel_edges[0, 0, voi_slice[-1], 1, 2].detach().cpu().item(),
                 )
 
             elif dim == 1:
                 return (
-                    voi.voxel_edges[0, voi_slice[0], 0, 0, 1],
-                    voi.voxel_edges[0, voi_slice[-1], 0, 1, 1],
+                    voi.voxel_edges[0, voi_slice[0], 0, 0, 1].detach().cpu().item(),
+                    voi.voxel_edges[0, voi_slice[-1], 0, 1, 1].detach().cpu().item(),
                 )
 
             elif dim == 0:
                 return (
-                    voi.voxel_edges[voi_slice[0], 0, 0, 0, 0],
-                    voi.voxel_edges[voi_slice[-1], 0, 0, 1, 0],
+                    voi.voxel_edges[voi_slice[0], 0, 0, 0, 0].detach().cpu().item(),
+                    voi.voxel_edges[voi_slice[-1], 0, 0, 1, 0].detach().cpu().item(),
                 )
         return (-0.666, -0.666)
 
@@ -275,24 +275,30 @@ class VoxelPlotting:
                     voi.xyz_min[1].detach().cpu().numpy(),
                     voi.xyz_max[1].detach().cpu().numpy(),
                 ),  # The left, right, bottom, top extent of the 2D slice.
-                "x_data": xy_data.sum(dim=1).detach().cpu().numpy()
-                / xy_data.size()[
-                    1
-                ],  # The 2D slice predictions averaged along the x axis (on the plot)
-                "y_data": xy_data.sum(dim=0)
-                / xy_data.size()[
-                    0
-                ],  # The 2D slice predictions averaged along the y axis (on the plot)
-                "x_data_uncs": xy_data_uncs.sum(dim=1)
-                / xy_data_uncs.size()[1],  # Same for uncs
-                "y_data_uncs": xy_data_uncs.sum(dim=0)
-                / xy_data_uncs.size()[0],  # Same for uncs
-                "x_vox_pos": voi.voxel_centers[
-                    :, 0, 0, 0
-                ],  # Voxels position along the x axis (on the plot)
-                "y_vox_pos": voi.voxel_centers[
-                    0, :, 0, 1
-                ],  # Voxels position along the y axis (on the plot)
+                "x_data": xy_data.mean(dim=1)
+                .detach()
+                .cpu()
+                .numpy(),  # The 2D slice predictions averaged along the x axis (on the plot)
+                "y_data": xy_data.mean(dim=0)
+                .detach()
+                .cpu()
+                .numpy(),  # The 2D slice predictions averaged along the y axis (on the plot)
+                "x_data_uncs": xy_data_uncs.mean(dim=1)
+                .detach()
+                .cpu()
+                .numpy(),  # Same for uncs
+                "y_data_uncs": xy_data_uncs.mean(dim=0)
+                .detach()
+                .cpu()
+                .numpy(),  # Same for uncs
+                "x_vox_pos": voi.voxel_centers[:, 0, 0, 0]
+                .detach()
+                .cpu()
+                .numpy(),  # Voxels position along the x axis (on the plot)
+                "y_vox_pos": voi.voxel_centers[0, :, 0, 1]
+                .detach()
+                .cpu()
+                .numpy(),  # Voxels position along the y axis (on the plot)
                 "plane": "XY",
             },
             1: {
@@ -306,12 +312,12 @@ class VoxelPlotting:
                     voi.xyz_min[2].detach().cpu().numpy(),
                     voi.xyz_max[2].detach().cpu().numpy(),
                 ),
-                "x_data": xy_data.sum(dim=1) / xy_data.size()[1],
-                "y_data": xy_data.sum(dim=0) / xy_data.size()[0],
-                "x_data_uncs": xy_data_uncs.sum(dim=1) / voi.n_vox_xyz[2],
-                "y_data_uncs": xy_data_uncs.sum(dim=0) / voi.n_vox_xyz[0],
-                "x_vox_pos": voi.voxel_centers[:, 0, 0, 0],
-                "y_vox_pos": voi.voxel_centers[0, 0, :, 2],
+                "x_data": xy_data.mean(dim=1).detach().cpu().numpy(),
+                "y_data": xy_data.mean(dim=0).detach().cpu().numpy(),
+                "x_data_uncs": xy_data_uncs.mean(dim=1).detach().cpu().numpy(),
+                "y_data_uncs": xy_data_uncs.mean(dim=0).detach().cpu().numpy(),
+                "x_vox_pos": voi.voxel_centers[:, 0, 0, 0].detach().cpu().numpy(),
+                "y_vox_pos": voi.voxel_centers[0, 0, :, 2].detach().cpu().numpy(),
                 "plane": "XZ",
             },
             0: {
@@ -325,12 +331,12 @@ class VoxelPlotting:
                     voi.xyz_min[2].detach().cpu().numpy(),
                     voi.xyz_max[2].detach().cpu().numpy(),
                 ),
-                "x_data": xy_data.sum(dim=1) / xy_data.size()[1],
-                "y_data": xy_data.sum(dim=0) / xy_data.size()[0],
-                "x_data_uncs": xy_data_uncs.sum(dim=1) / voi.n_vox_xyz[1],
-                "y_data_uncs": xy_data_uncs.sum(dim=0) / voi.n_vox_xyz[2],
-                "x_vox_pos": voi.voxel_centers[0, :, 0, 1],
-                "y_vox_pos": voi.voxel_centers[0, 0, :, 2],
+                "x_data": xy_data.mean(dim=1).detach().cpu().numpy(),
+                "y_data": xy_data.mean(dim=0).detach().cpu().numpy(),
+                "x_data_uncs": xy_data_uncs.mean(dim=1).detach().cpu().numpy(),
+                "y_data_uncs": xy_data_uncs.mean(dim=0).detach().cpu().numpy(),
+                "x_vox_pos": voi.voxel_centers[0, :, 0, 1].detach().cpu().numpy(),
+                "y_vox_pos": voi.voxel_centers[0, 0, :, 2].detach().cpu().numpy(),
                 "plane": "YZ",
             },
         }
@@ -348,16 +354,24 @@ class VoxelPlotting:
         fig, ax = plt.subplots(figsize=figsize)
 
         # Set 2D map contrast
-        vmin = xy_data.ravel().min() if v_min_max is None else v_min_max[0]
-        vmax = xy_data.ravel().max() if v_min_max is None else v_min_max[1]
+        vmin = (
+            xy_data.ravel().min().detach().cpu().item()
+            if v_min_max is None
+            else v_min_max[0]
+        )
+        vmax = (
+            xy_data.ravel().max().detach().cpu().item()
+            if v_min_max is None
+            else v_min_max[1]
+        )
 
         # Plot the 2D slice predictions
         im = ax.imshow(
             xy_data.T.detach().cpu().numpy(),
             cmap=cmap,
             origin="lower",
-            vmin=vmin.detach().cpu().numpy(),
-            vmax=vmax.detach().cpu().numpy(),
+            vmin=vmin,
+            vmax=vmax,
             extent=dim_mapping[dim]["extent"],
         )
 
@@ -396,7 +410,7 @@ class VoxelPlotting:
         # Plot the predictions averaged along the x and y axis
         if xyz_voxel_pred_uncs is None:
             ax_histx.scatter(
-                dim_mapping[dim]["x_vox_pos"].detach().cpu().numpy(),
+                dim_mapping[dim]["x_vox_pos"],
                 dim_mapping[dim]["x_data"],
                 marker=".",
             )
