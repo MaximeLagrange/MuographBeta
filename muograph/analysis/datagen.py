@@ -7,9 +7,9 @@ import h5py
 
 from volume.volume import Volume
 from tracking.tracking import Tracking, TrackingMST
-from hits.hits import Hits
+from hits.hits import Hits, allowed_d_units
 from reconstruction.binned_clustered import BCA, bca_params_type
-from hits.hits import allowed_d_units
+from utils.save import AbsSave
 
 voi_dict_type = Dict[str, Union[Tuple[float, float, float], int]]
 file_dict_type = Dict[str, str]
@@ -114,15 +114,19 @@ class MetaData:
         Recursively saves a dictionary to an HDF5 file.
 
         Args:
-            dictionary (dict): The dictionary to save.
-            filename (str): The name of the output HDF5 file.
+            data_dict (dict): The dictionary to save.
+            output_dir (Path): The directory where the output HDF5 file will be saved.
         """
 
         def recursively_save_dict(group: h5py.Group, dict_obj: data_dict_type) -> None:
             for key, value in dict_obj.items():
                 if isinstance(value, dict):
-                    # Create a subgroup and recursively save the dictionary
-                    subgroup = group.create_group(key)
+                    # Check if group already exists
+                    if key in group:
+                        subgroup = group[key]  # Use existing group
+                    else:
+                        # Create a new subgroup
+                        subgroup = group.create_group(key)
                     recursively_save_dict(subgroup, value)  # type: ignore
                 elif isinstance(value, (list, tuple)):
                     # Convert lists and tuples to NumPy arrays and save
@@ -141,7 +145,7 @@ class MetaData:
         # Ensure proper path handling
         output_file_path = output_dir / (data_dict["input_file"]["name"] + ".h5")  # type: ignore
 
-        with h5py.File(output_file_path) as hdf_file:
+        with h5py.File(output_file_path, "w") as hdf_file:  # Open in write mode
             recursively_save_dict(hdf_file, data_dict)
 
     @staticmethod
@@ -299,7 +303,7 @@ class PredictorBCA:
         return self._preds_dict
 
 
-class DataGen:
+class DataGen(AbsSave):
     def __init__(
         self,
         files: List[str],
@@ -312,6 +316,7 @@ class DataGen:
         spatial_res: Tuple[float, float, float] = (0.0, 0.0, 0.0),
         efficiency: float = 1.0,
     ) -> None:
+        super().__init__(output_dir=output_dir)
         # Detector parameters
         self.spatial_res = spatial_res  # in mm
         self.efficiency = efficiency
@@ -345,13 +350,6 @@ class DataGen:
         if self.d_unit not in allowed_d_units:
             raise ValueError(
                 f"The input data file must have the following distance units: {allowed_d_units}"
-            )
-
-        # Directory where to save metadata
-        self.output_dir = Path(output_dir)
-        if not self.output_dir.exists():
-            raise FileNotFoundError(
-                f"Output directory {self.output_dir.absolute()} does not exist!"
             )
 
         # Parameters of the BCA
@@ -407,7 +405,7 @@ class DataGen:
         hits_in = Hits(
             plane_labels=self.upper_panel_indices,
             input_unit=self.d_unit,
-            df=hits_df.iloc,
+            df=hits_df,
             spatial_res=self.spatial_res,
             efficiency=self.efficiency,
         )
@@ -415,7 +413,7 @@ class DataGen:
         hits_out = Hits(
             plane_labels=self.lower_panel_indices,
             input_unit=self.d_unit,
-            df=hits_df.iloc,
+            df=hits_df,
             spatial_res=self.spatial_res,
             efficiency=self.efficiency,
         )
@@ -482,7 +480,7 @@ class DataGen:
             compute_angular_res=False,
         )
 
-        return TrackingMST(trackings=(tracks_in, tracks_out))
+        return TrackingMST(trackings=(tracks_in, tracks_out), save=False)
 
     @staticmethod
     def check_files_exist(files: List[str]) -> bool:
