@@ -24,6 +24,7 @@ class AbsSave:
 
         Args:
             output_dir (str): The path to the directory where output files will be saved.
+            save (bool): If True, the output_dir gets created.
         """
         if output_dir is None:
             output_dir = default_output_dir
@@ -38,7 +39,7 @@ class AbsSave:
             except PermissionError:
                 print(f"Permission denied: Could not create {self.output_dir}")
             except OSError as e:
-                # General fallback for other OS-related errors, but at least it's still specific.
+                # General fallback for other OS-related errors.
                 print(f"OS error occurred while creating {self.output_dir}: {e}")
 
     @staticmethod
