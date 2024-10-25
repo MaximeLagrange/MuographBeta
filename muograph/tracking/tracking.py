@@ -532,6 +532,7 @@ class TrackingMST(AbsSave):
         tracking_files: Optional[Tuple[str, str]] = None,
         trackings: Optional[Tuple[Tracking, Tracking]] = None,
         output_dir: Optional[str] = None,
+        save: bool = True,
     ) -> None:
         r"""
         Initializes the TrackingMST object with either 2 instances of the Tracking class
@@ -546,7 +547,7 @@ class TrackingMST(AbsSave):
             -  output_dir (Optional[str]): Path to a directory where to save TrackingMST attributes
             in a hdf5 file. (Not Implemented Yet).
         """
-        super().__init__(output_dir)
+        super().__init__(output_dir=output_dir, save=save)
 
         if tracking_files is None and trackings is None:
             raise ValueError(
