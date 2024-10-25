@@ -407,7 +407,7 @@ class DataGen:
         hits_in = Hits(
             plane_labels=self.upper_panel_indices,
             input_unit=self.d_unit,
-            df=hits_df.iloc[:50000],
+            df=hits_df.iloc,
             spatial_res=self.spatial_res,
             efficiency=self.efficiency,
         )
@@ -415,7 +415,7 @@ class DataGen:
         hits_out = Hits(
             plane_labels=self.lower_panel_indices,
             input_unit=self.d_unit,
-            df=hits_df.iloc[:50000],
+            df=hits_df.iloc,
             spatial_res=self.spatial_res,
             efficiency=self.efficiency,
         )
