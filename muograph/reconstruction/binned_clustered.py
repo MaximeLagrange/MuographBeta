@@ -146,7 +146,7 @@ class BCA(POCA):
         nhit.view(-1).scatter_(0, unique_voxels, counts)
 
         # Mask to identify which events should be rejected
-        rejected_events = torch.tensor([], dtype=torch.long)
+        rejected_events = torch.tensor([], dtype=torch.long, device=DEVICE)
 
         for voxel_idx in unique_voxels:
             # Get mask for the current voxel
@@ -176,7 +176,7 @@ class BCA(POCA):
 
         # Sort rejected events and create mask
         rejected_events, _ = torch.sort(rejected_events)
-        mask = torch.ones_like(dtheta, dtype=torch.bool)
+        mask = torch.ones_like(dtheta, dtype=torch.bool, device=DEVICE)
         mask[rejected_events] = False
 
         return mask, nhit, nhit_cut
