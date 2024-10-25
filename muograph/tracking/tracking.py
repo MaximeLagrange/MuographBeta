@@ -6,8 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 
 from utils.save import AbsSave
-from utils.device import DEVICE
-from utils.params import dtype_track
 from hits.hits import Hits
 from plotting.params import n_bins, alpha, font, titlesize, hist_figsize, labelsize
 
@@ -167,7 +165,7 @@ class Tracking(AbsSave):
     @staticmethod
     def get_theta_from_tracks(tracks: Tensor) -> Tensor:
         r"""
-        Compute muons' zenith angle in radiants, from the direction vector of the track.
+        Compute muons' zenith angle in radians from the direction vector of the track.
 
         Args:
             tracks (Tensor): Direction vector of the tracks.
@@ -175,31 +173,35 @@ class Tracking(AbsSave):
         Returns:
             theta (Tensor): Muons' zenith angle.
         """
-
         x, y, z = tracks[:, 0], tracks[:, 1], tracks[:, 2]
-        r = torch.sqrt(x**2 + y**2 + z**2)
-        theta = torch.acos(z / r)
-        return torch.where(math.pi - theta < theta, math.pi - theta, theta)
+
+        # Compute theta using arctan of the transverse component over z
+        theta = torch.atan2(torch.sqrt(x**2 + y**2), z)
+
+        return theta
 
     @staticmethod
     def get_theta_xy_from_tracks(tracks: Tensor) -> Tensor:
         r"""
-        Compute muons' projected zenith angle in XZ and YZ plane in radiants,
+        Compute muons' projected zenith angle in XZ and YZ planes in radians,
         from the direction vector of the track.
 
         Args:
             tracks (Tensor): Direction vector of the tracks.
 
         Returns:
-            theta_xy (Tensor): Muons' zenith angle in XZ and YZ plane.
+            theta_xy (Tensor): Muons' zenith angle in XZ and YZ planes.
         """
+        theta_xy = torch.empty(
+            (2, tracks.size(0)), dtype=tracks.dtype, device=tracks.device
+        )
 
-        theta_xy = torch.empty([2, tracks.size()[0]], dtype=dtype_track, device=DEVICE)
+        # Compute the angles using atan2 for numerical stability
+        theta_xy[0] = torch.atan2(tracks[:, 0], tracks[:, 2])  # Angle in XZ plane
+        theta_xy[1] = torch.atan2(tracks[:, 1], tracks[:, 2])  # Angle in YZ plane
 
-        theta_xy[0] = torch.atan(tracks[:, 0] / tracks[:, 2])
-        theta_xy[1] = torch.atan(tracks[:, 1] / tracks[:, 2])
-
-        theta_xy = torch.where(theta_xy > math.pi / 2, math.pi - theta_xy, theta_xy)
+        # Adjust angles to ensure they are in the range [0, π/2]
+        theta_xy = torch.where(theta_xy > torch.pi / 2, torch.pi - theta_xy, theta_xy)
 
         return theta_xy
 
@@ -594,8 +596,6 @@ class TrackingMST(AbsSave):
             - tracks_out (Tensor): The outgoing muon tracks with size (mu, 3)
             - tol (float): A tolerance parameter to avoid errors when computing acos(dot_prod).
             the dot_prod is clamped between (-1 + tol, 1 - tol). Default value is 1.e12.
-
-        IMPORTANT: Change nfrom cosine to tan to avoid floating precision issues.
 
         Returns:
             - dtheta (Tensor): The scattering angle between the incoming and outgoing muon
