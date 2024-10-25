@@ -1,7 +1,6 @@
 import torch
 from torch import Tensor
 from typing import Tuple, Optional
-import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib
@@ -47,7 +46,7 @@ class Tracking(AbsSave):
         "angular_res",
         "E",
         "label",
-        "type",
+        "measurement_type",
         "tracks_eff",
     ]
 
@@ -57,41 +56,32 @@ class Tracking(AbsSave):
         hits: Optional[Hits] = None,
         output_dir: Optional[str] = None,
         tracks_hdf5: Optional[str] = None,
-        type: Optional[str] = None,
+        measurement_type: Optional[str] = None,
         save: bool = True,
         compute_angular_res: bool = False,
     ) -> None:
         r"""
         Initializes the Tracking object.
 
-        The instanciation can be done in 2 ways:
-        - Provide `hits`. The tracks will be computed and saved as hdf5 files in `output_dir`.
-        - Provide `tracks_hdf5`. The tracking featres will be loaded from `tracks_hdf5`.
+        The instantiation can be done in two ways:
+        - By providing `hits`: Computes tracks and saves them as HDF5 files in `output_dir`.
+        - By providing `tracks_hdf5`: Loads tracking features from the specified HDF5 file.
 
         Args:
-            hits (Hits): An instance of the Hits class.
-            label (str): The position of the hits with respect to the passive volume, either 'above' or 'below'.
-            output_dir (str): The name of the directory where to save the Tracking attributes in _vars_to_save.
-            tracks_hdf5 (str): The path to the hdf5 file where a Tracking instance was saved.
-            type (str): The type of measurement campaign. Either absorption or freesky.
+            label (str): The position of the hits relative to the passive volume ('above' or 'below').
+            hits (Optional[Hits]): An instance of the Hits class, required if `tracks_hdf5` is not provided.
+            output_dir (Optional[str]): Directory to save Tracking attributes if `save` is True.
+            tracks_hdf5 (Optional[str]): Path to an HDF5 file with previously saved Tracking data.
+            measurement_type (Optional[str]): Type of measurement campaign, either 'absorption' or 'freesky'.
+            save (bool): If True, saves attributes to `output_dir`. Default is True.
+            compute_angular_res (bool): If True, computes angular resolution. Default is False.
         """
 
         self._compute_angular_res = compute_angular_res
 
-        if label in ["above", "below"]:
-            self._label = label
-        else:
-            raise ValueError("Provide either 'above' or 'below' as `label` argument.")
-
-        if type in ["absorption", "freesky"]:
-            self._type = type
-        elif type is None:
-            self._type = ""
-        else:
-            raise ValueError(
-                "Provide either 'absorption' or 'freesky' as 'type' argument."
-            )
-
+        self._label = self._validate_label(label)
+        self._measurement_type = self._validate_measurement_type(measurement_type)
+        self._compute_angular_res = compute_angular_res
         super().__init__(output_dir=output_dir, save=save)
 
         if (hits is not None) & (tracks_hdf5 is None):
@@ -101,57 +91,78 @@ class Tracking(AbsSave):
                 self.save_attr(
                     attributes=self._vars_to_save,
                     directory=self.output_dir,
-                    filename="tracks_" + self.label + "_" + self.type,
+                    filename="tracks_" + self.label + "_" + self._measurement_type,
                 )
         elif tracks_hdf5 is not None:
             self.load_attr(attributes=self._vars_to_save, filename=tracks_hdf5)
 
     @staticmethod
-    def get_tracks_points_from_hits(hits: Tensor) -> Tuple[Tensor, Tensor]:
+    def _validate_label(label: str) -> str:
+        if label not in ["above", "below"]:
+            raise ValueError("Label must be either 'above' or 'below'.")
+        return label
+
+    @staticmethod
+    def _validate_measurement_type(measurement_type: Optional[str]) -> str:
+        valid_types = ["absorption", "freesky", None]
+        if measurement_type not in valid_types:
+            raise ValueError(
+                "Measurement type must be 'absorption', 'freesky', or None."
+            )
+        return measurement_type or ""
+
+    @staticmethod
+    def get_tracks_points_from_hits(
+        hits: Tensor, chunk_size: int = 200_000
+    ) -> Tuple[Tensor, Tensor]:
         r"""
-        Extract tracks and points from hits data.
+        The muon hits on detector planes are plugged into a linear fit
+        to compute a track T(tx, ty, tz) and a point on that track P(px, py, pz).
 
-        Args:import numba
-
+        Args:
             - hits (Tensor): The hits data with shape (3, n_plane, mu).
+            - chunk_size (int): Size of chunks for processing in case mu is very large.
 
         Returns:
             - tracks, points (Tuple[Tensor, Tensor]): The points and tracks tensors
             with respective size (mu, 3).
         """
 
-        from skspatial.objects import Line, Points
-        from joblib import Parallel, delayed
+        _, __, mu = hits.shape
 
-        hits = torch.transpose(hits, 0, 1).detach().cpu().numpy()
+        tracks = torch.empty((mu, 3), dtype=hits.dtype, device=hits.device)
+        points = torch.empty((mu, 3), dtype=hits.dtype, device=hits.device)
 
-        def fit_line(hits_ev):  # type: ignore
-            fit = Line.best_fit(Points(hits_ev))
-            return fit.direction, fit.point
+        # Process in chunks to manage memory
+        for start in range(0, mu, chunk_size):
+            end = min(start + chunk_size, mu)
 
-        # Extract number of hits
-        num_hits = hits.shape[-1]
+            hits_chunk = hits[:, :, start:end]  # Shape: (3, n_plane, chunk_size)
 
-        # Prepare data for parallel processing
-        hits_list = [hits[:, :, i] for i in range(num_hits)]
+            # Calculate the mean point for each set of hits in the chunk
+            points_chunk = hits_chunk.mean(dim=1)  # Shape: (3, chunk_size)
 
-        # Use joblib to parallelize the fitting process
-        results = Parallel(n_jobs=-1)(
-            delayed(fit_line)(hits_ev) for hits_ev in hits_list
-        )
+            # Center the data
+            centered_hits_chunk = hits_chunk - points_chunk.unsqueeze(
+                1
+            )  # Shape: (3, n_plane, chunk_size)
 
-        # Separate the results into tracks and points
-        tracks, points = zip(*results)
+            # Perform SVD in batch mode
+            centered_hits_chunk = centered_hits_chunk.permute(
+                2, 1, 0
+            )  # Shape: (chunk_size, n_plane, 3)
+            _, _, vh = torch.linalg.svd(
+                centered_hits_chunk, full_matrices=False
+            )  # vh shape: (chunk_size, 3, 3)
 
-        # Convert the results to NumPy arrays
-        tracks_np = np.array(tracks)
-        points_np = np.array(points)
+            # Extract the principal direction (first right singular vector) for each set
+            tracks_chunk = vh[:, 0, :]  # Shape: (chunk_size, 3)
 
-        # Convert the results back to torch tensors if needed
-        tracks_tensor = torch.tensor(tracks_np, dtype=dtype_track, device=DEVICE)
-        points_tensor = torch.tensor(points_np, dtype=dtype_track, device=DEVICE)
+            # Store the chunk results in the main output tensors
+            tracks[start:end, :] = tracks_chunk
+            points[start:end, :] = points_chunk.T
 
-        return tracks_tensor, points_tensor
+        return tracks, points
 
     @staticmethod
     def get_theta_from_tracks(tracks: Tensor) -> Tensor:
@@ -492,12 +503,12 @@ class Tracking(AbsSave):
         self._label = value
 
     @property
-    def type(self) -> str:
-        return self._type
+    def measurement_type(self) -> str:
+        return self._measurement_type
 
-    @type.setter
-    def type(self, value: str) -> None:
-        self._type = value
+    @measurement_type.setter
+    def measurement_type(self, value: str) -> None:
+        self._measurement_type = value
 
 
 class TrackingMST(AbsSave):
