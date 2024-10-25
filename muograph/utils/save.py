@@ -9,7 +9,7 @@ muograph_path = (
     str(Path(__file__).parent.parent.parent).split("/MuographBeta/")[0]
     + "/MuographBeta/"
 )
-default_output_dir = muograph_path + "/output/"
+default_output_dir: str = muograph_path + "/output/"
 
 
 class AbsSave:
