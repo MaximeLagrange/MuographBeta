@@ -160,6 +160,7 @@ class Tracking(AbsSave):
             tracks[start:end, :] = tracks_chunk
             points[start:end, :] = points_chunk.T
 
+        tracks[:, 2] = torch.where(tracks[:, 2] > 0, -tracks[:, 2], tracks[:, 2])
         return tracks, points
 
     @staticmethod
@@ -176,7 +177,7 @@ class Tracking(AbsSave):
         x, y, z = tracks[:, 0], tracks[:, 1], tracks[:, 2]
 
         # Compute theta using arctan of the transverse component over z
-        theta = torch.atan2(torch.sqrt(x**2 + y**2), z)
+        theta = math.pi - torch.atan2(torch.sqrt(x**2 + y**2), z)
 
         return theta
 
@@ -196,12 +197,10 @@ class Tracking(AbsSave):
             (2, tracks.size(0)), dtype=tracks.dtype, device=tracks.device
         )
 
-        # Compute the angles using atan2 for numerical stability
-        theta_xy[0] = torch.atan2(tracks[:, 0], tracks[:, 2])  # Angle in XZ plane
-        theta_xy[1] = torch.atan2(tracks[:, 1], tracks[:, 2])  # Angle in YZ plane
+        theta_xy[0] = torch.atan(tracks[:, 0] / tracks[:, 2])
+        theta_xy[1] = torch.atan(tracks[:, 1] / tracks[:, 2])
 
-        # Adjust angles to ensure they are in the range [0, π/2]
-        theta_xy = torch.where(theta_xy > torch.pi / 2, torch.pi - theta_xy, theta_xy)
+        theta_xy = torch.where(theta_xy > math.pi / 2, math.pi - theta_xy, theta_xy)
 
         return theta_xy
 
@@ -366,7 +365,6 @@ class Tracking(AbsSave):
         """
         self._theta = None  # (mu)
         self._theta_xy = None  # (2, mu)
-        self._dtheta = None  # (mu)
 
     def _filter_muons(self, mask: Tensor) -> None:
         r"""
