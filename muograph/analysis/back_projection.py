@@ -137,14 +137,17 @@ class BackProjectionAnalysis(AbsSave, VoxelPlotting):
         """
 
         tracks_freesky = Tracking(
-            hits=freesky_hits, label="below", output_dir=self.output_dir, type="freesky"
+            hits=freesky_hits,
+            label="below",
+            output_dir=self.output_dir,
+            measurement_type="freesky",
         )
 
         tracks_absorption = Tracking(
             hits=absorption_hits,
             label="below",
             output_dir=self.output_dir,
-            type="absorption",
+            measurement_type="absorption",
         )
 
         back_proj_freesky = BackProjection(
@@ -186,13 +189,13 @@ class BackProjectionAnalysis(AbsSave, VoxelPlotting):
         tracks_freesky = Tracking(
             tracks_hdf5=input_dir + "tracks_below_freesky.hdf5",
             label="below",
-            type="freesky",
+            measurement_type="freesky",
         )
 
         tracks_absorption = Tracking(
             tracks_hdf5=input_dir + "tracks_below_absorption.hdf5",
             label="below",
-            type="absorption",
+            measurement_type="absorption",
         )
 
         back_proj_freesky = BackProjection(
