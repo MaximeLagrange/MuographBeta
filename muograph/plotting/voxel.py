@@ -2,6 +2,7 @@ import torch
 from torch import Tensor
 from typing import Tuple, Optional, Union
 import matplotlib
+import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -415,25 +416,25 @@ class VoxelPlotting:
                 marker=".",
             )
             ax_histy.scatter(
-                dim_mapping[dim]["y_data"].detach().cpu().numpy(),
-                dim_mapping[dim]["y_vox_pos"].detach().cpu().numpy(),
+                dim_mapping[dim]["y_data"],
+                dim_mapping[dim]["y_vox_pos"],
                 marker=".",
             )
 
         else:
             # Plot uncertainties if available
             ax_histx.errorbar(
-                x=dim_mapping[dim]["x_vox_pos"].detach().cpu().numpy(),
-                y=dim_mapping[dim]["x_data"].detach().cpu().numpy(),
+                x=dim_mapping[dim]["x_vox_pos"],
+                y=dim_mapping[dim]["x_data"],
                 xerr=0,
-                yerr=dim_mapping[dim]["x_data_uncs"].detach().cpu().numpy(),
+                yerr=dim_mapping[dim]["x_data_uncs"],
                 marker=".",
                 alpha=0.6,
             )
             ax_histy.errorbar(
-                x=dim_mapping[dim]["y_data"].detach().cpu().numpy(),
-                y=dim_mapping[dim]["y_vox_pos"].detach().cpu().numpy(),
-                xerr=dim_mapping[dim]["y_data_uncs"].detach().cpu().numpy(),
+                x=dim_mapping[dim]["y_data"],
+                y=dim_mapping[dim]["y_vox_pos"],
+                xerr=dim_mapping[dim]["y_data_uncs"],
                 yerr=0,
                 marker=".",
                 alpha=0.6,
@@ -442,12 +443,12 @@ class VoxelPlotting:
         # Set same range for x and y histograms
         if reference_value is not None:
             min_pred_xy = min(
-                torch.min(dim_mapping[dim]["x_data"]).item(),
-                torch.min(dim_mapping[dim]["y_data"]).item(),
+                np.min(dim_mapping[dim]["x_data"]),
+                np.min(dim_mapping[dim]["y_data"]),
             )
             max_pred_xy = max(
-                torch.max(dim_mapping[dim]["x_data"]).item(),
-                torch.min(dim_mapping[dim]["y_data"]).item(),
+                np.max(dim_mapping[dim]["x_data"]),
+                np.min(dim_mapping[dim]["y_data"]),
                 reference_value,
             )
             ax_histx.set_ylim(min_pred_xy * 0.98, max_pred_xy * 1.02)
