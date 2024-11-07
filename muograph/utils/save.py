@@ -83,7 +83,9 @@ class AbsSave:
         f.close()
         print("Class attributes saved at {}".format(directory / filename))
 
-    def load_attr(self, attributes: List[str], filename: str, tag: str = None) -> None:
+    def load_attr(
+        self, attributes: List[str], filename: str, tag: Optional[str] = None
+    ) -> None:
         r"""
         Loads class attributes from hdf5 file.
 
