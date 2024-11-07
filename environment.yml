@@ -16,5 +16,6 @@ dependencies:
   - ipykernel
   - git-lfs
   - pre-commit
+  - pytest
   # - eigen  # Eigen for linear algebra operations
   # - tbb  # Intel's Threading Building Blocks for parallelism
