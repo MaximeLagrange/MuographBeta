@@ -245,7 +245,7 @@ def plot_2d_vector(
 
 def get_n_bins_xy_from_xy_span(
     dx: float, dy: float, n_bins: int = n_bins_2D
-) -> Tuple[int, int]:
+) -> Tuple[int, int, int]:
     r"""
     Calculate the number of bins along the x and y dimensions based on the
     aspect ratio of the plot and the total desired number of bins.

@@ -1,7 +1,6 @@
 import torch
 from torch import Tensor
 from typing import Tuple, Optional
-import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib
@@ -45,7 +44,7 @@ class Tracking(AbsSave):
         "angular_res",
         "E",
         "label",
-        "type",
+        "measurement_type",
         "tracks_eff",
     ]
 
@@ -55,101 +54,119 @@ class Tracking(AbsSave):
         hits: Optional[Hits] = None,
         output_dir: Optional[str] = None,
         tracks_hdf5: Optional[str] = None,
-        type: Optional[str] = None,
+        measurement_type: Optional[str] = None,
+        save: bool = True,
+        compute_angular_res: bool = False,
     ) -> None:
         r"""
         Initializes the Tracking object.
 
-        The instanciation can be done in 2 ways:
-        - Provide `hits`. The tracks will be computed and saved as hdf5 files in `output_dir`.
-        - Provide `tracks_hdf5`. The tracking featres will be loaded from `tracks_hdf5`.
+        The instantiation can be done in two ways:
+        - By providing `hits`: Computes tracks and saves them as HDF5 files in `output_dir`.
+        - By providing `tracks_hdf5`: Loads tracking features from the specified HDF5 file.
 
         Args:
-            hits (Hits): An instance of the Hits class.
-            label (str): The position of the hits with respect to the passive volume, either 'above' or 'below'.
-            output_dir (str): The name of the directory where to save the Tracking attributes in _vars_to_save.
-            tracks_hdf5 (str): The path to the hdf5 file where a Tracking instance was saved.
-            type (str): The type of measurement campaign. Either absorption or freesky.
+            label (str): The position of the hits relative to the passive volume ('above' or 'below').
+            hits (Optional[Hits]): An instance of the Hits class, required if `tracks_hdf5` is not provided.
+            output_dir (Optional[str]): Directory to save Tracking attributes if `save` is True.
+            tracks_hdf5 (Optional[str]): Path to an HDF5 file with previously saved Tracking data.
+            measurement_type (Optional[str]): Type of measurement campaign, either 'absorption' or 'freesky'.
+            save (bool): If True, saves attributes to `output_dir`. Default is True.
+            compute_angular_res (bool): If True, computes angular resolution. Default is False.
         """
 
-        if label in ["above", "below"]:
-            self._label = label
-        else:
-            raise ValueError("Provide either 'above' or 'below' as `label` argument.")
+        self._compute_angular_res = compute_angular_res
 
-        if type in ["absorption", "freesky"]:
-            self._type = type
-        elif type is None:
-            self._type = ""
-        else:
-            raise ValueError(
-                "Provide either 'absorption' or 'freesky' as 'type' argument."
-            )
-
-        super().__init__(output_dir)
+        self._label = self._validate_label(label)
+        self._measurement_type = self._validate_measurement_type(measurement_type)
+        self._compute_angular_res = compute_angular_res
+        super().__init__(output_dir=output_dir, save=save)
 
         if (hits is not None) & (tracks_hdf5 is None):
             self.hits = hits
 
-            self.save_attr(
-                attributes=self._vars_to_save,
-                directory=self.output_dir,
-                filename="tracks_" + self.label + "_" + self.type,
-            )
+            if save:
+                self.save_attr(
+                    attributes=self._vars_to_save,
+                    directory=self.output_dir,
+                    filename="tracks_" + self.label + "_" + self._measurement_type,
+                )
         elif tracks_hdf5 is not None:
             self.load_attr(attributes=self._vars_to_save, filename=tracks_hdf5)
 
     @staticmethod
-    def get_tracks_points_from_hits(hits: Tensor) -> Tuple[Tensor, Tensor]:
+    def _validate_label(label: str) -> str:
+        if label not in ["above", "below"]:
+            raise ValueError("Label must be either 'above' or 'below'.")
+        return label
+
+    @staticmethod
+    def _validate_measurement_type(measurement_type: Optional[str]) -> str:
+        valid_types = ["absorption", "freesky", None]
+        if measurement_type not in valid_types:
+            raise ValueError(
+                "Measurement type must be 'absorption', 'freesky', or None."
+            )
+        return measurement_type or ""
+
+    @staticmethod
+    def get_tracks_points_from_hits(
+        hits: Tensor, chunk_size: int = 200_000
+    ) -> Tuple[Tensor, Tensor]:
         r"""
-        Extract tracks and points from hits data.
+        The muon hits on detector planes are plugged into a linear fit
+        to compute a track T(tx, ty, tz) and a point on that track P(px, py, pz).
 
-        Args:import numba
-
+        Args:
             - hits (Tensor): The hits data with shape (3, n_plane, mu).
+            - chunk_size (int): Size of chunks for processing in case mu is very large.
 
         Returns:
             - tracks, points (Tuple[Tensor, Tensor]): The points and tracks tensors
             with respective size (mu, 3).
         """
 
-        from skspatial.objects import Line, Points
-        from joblib import Parallel, delayed
+        _, __, mu = hits.shape
 
-        hits = torch.transpose(hits, 0, 1).numpy()
+        tracks = torch.empty((mu, 3), dtype=hits.dtype, device=hits.device)
+        points = torch.empty((mu, 3), dtype=hits.dtype, device=hits.device)
 
-        def fit_line(hits_ev):  # type: ignore
-            fit = Line.best_fit(Points(hits_ev))
-            return fit.direction, fit.point
+        # Process in chunks to manage memory
+        for start in range(0, mu, chunk_size):
+            end = min(start + chunk_size, mu)
 
-        # Extract number of hits
-        num_hits = hits.shape[-1]
+            hits_chunk = hits[:, :, start:end]  # Shape: (3, n_plane, chunk_size)
 
-        # Prepare data for parallel processing
-        hits_list = [hits[:, :, i] for i in range(num_hits)]
+            # Calculate the mean point for each set of hits in the chunk
+            points_chunk = hits_chunk.mean(dim=1)  # Shape: (3, chunk_size)
 
-        # Use joblib to parallelize the fitting process
-        results = Parallel(n_jobs=-1)(
-            delayed(fit_line)(hits_ev) for hits_ev in hits_list
-        )
+            # Center the data
+            centered_hits_chunk = hits_chunk - points_chunk.unsqueeze(
+                1
+            )  # Shape: (3, n_plane, chunk_size)
 
-        # Separate the results into tracks and points
-        tracks, points = zip(*results)
+            # Perform SVD in batch mode
+            centered_hits_chunk = centered_hits_chunk.permute(
+                2, 1, 0
+            )  # Shape: (chunk_size, n_plane, 3)
+            _, _, vh = torch.linalg.svd(
+                centered_hits_chunk, full_matrices=False
+            )  # vh shape: (chunk_size, 3, 3)
 
-        # Convert the results to NumPy arrays
-        tracks_np = np.array(tracks)
-        points_np = np.array(points)
+            # Extract the principal direction (first right singular vector) for each set
+            tracks_chunk = vh[:, 0, :]  # Shape: (chunk_size, 3)
 
-        # Convert the results back to torch tensors if needed
-        tracks_tensor = Tensor(tracks_np)
-        points_tensor = Tensor(points_np)
+            # Store the chunk results in the main output tensors
+            tracks[start:end, :] = tracks_chunk
+            points[start:end, :] = points_chunk.T
 
-        return tracks_tensor, points_tensor
+        tracks[:, 2] = torch.where(tracks[:, 2] > 0, -tracks[:, 2], tracks[:, 2])
+        return tracks, points
 
     @staticmethod
     def get_theta_from_tracks(tracks: Tensor) -> Tensor:
         r"""
-        Compute muons' zenith angle in radiants, from the direction vector of the track.
+        Compute muons' zenith angle in radians from the direction vector of the track.
 
         Args:
             tracks (Tensor): Direction vector of the tracks.
@@ -157,26 +174,28 @@ class Tracking(AbsSave):
         Returns:
             theta (Tensor): Muons' zenith angle.
         """
-
         x, y, z = tracks[:, 0], tracks[:, 1], tracks[:, 2]
-        r = torch.sqrt(x**2 + y**2 + z**2)
-        theta = torch.acos(z / r)
-        return torch.where(math.pi - theta < theta, math.pi - theta, theta)
+
+        # Compute theta using arctan of the transverse component over z
+        theta = math.pi - torch.atan2(torch.sqrt(x**2 + y**2), z)
+
+        return theta
 
     @staticmethod
     def get_theta_xy_from_tracks(tracks: Tensor) -> Tensor:
         r"""
-        Compute muons' projected zenith angle in XZ and YZ plane in radiants,
+        Compute muons' projected zenith angle in XZ and YZ planes in radians,
         from the direction vector of the track.
 
         Args:
             tracks (Tensor): Direction vector of the tracks.
 
         Returns:
-            theta_xy (Tensor): Muons' zenith angle in XZ and YZ plane.
+            theta_xy (Tensor): Muons' zenith angle in XZ and YZ planes.
         """
-
-        theta_xy = torch.empty([2, tracks.size()[0]])
+        theta_xy = torch.empty(
+            (2, tracks.size(0)), dtype=tracks.dtype, device=tracks.device
+        )
 
         theta_xy[0] = torch.atan(tracks[:, 0] / tracks[:, 2])
         theta_xy[1] = torch.atan(tracks[:, 1] / tracks[:, 2])
@@ -241,19 +260,21 @@ class Tracking(AbsSave):
         )
 
         # Zenith angle
-        axs[0].hist(self.theta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        axs[0].hist(
+            self.theta.detach().cpu().numpy() * 180 / math.pi, bins=n_bins, alpha=alpha
+        )
         axs[0].axvline(
-            x=self.theta.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.theta.mean().numpy() * 180 / math.pi:.1f}",
+            x=self.theta.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.theta.mean().detach().cpu().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
         axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]", fontweight="bold")
 
         # Energy
-        axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
+        axs[1].hist(self.E.detach().cpu().numpy(), bins=n_bins, alpha=alpha, log=True)
         axs[1].axvline(
-            x=self.E.mean().numpy(),
-            label=f"mean = {self.E.mean().numpy():.3E}",
+            x=self.E.mean().detach().cpu().numpy(),
+            label=f"mean = {self.E.mean().detach().cpu().numpy():.3E}",
             color="red",
         )
         axs[1].set_xlabel(r" Energy [MeV]", fontweight="bold")
@@ -297,24 +318,28 @@ class Tracking(AbsSave):
 
         # Fig title
         fig.suptitle(
-            f"Batch of {self.tracks.size()[0]} muons\nAngular resolution = {self.angular_error.std().numpy() * 180 / math.pi:.2f} deg",
+            f"Batch of {self.tracks.size()[0]} muons\nAngular resolution = {self.angular_error.std().detach().cpu().numpy() * 180 / math.pi:.2f} deg",
             fontsize=titlesize,
             fontweight="bold",
         )
 
         # Projected zenith angle error
-        ax.hist(self.angular_error.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        ax.hist(
+            self.angular_error.detach().cpu().numpy() * 180 / math.pi,
+            bins=n_bins,
+            alpha=alpha,
+        )
 
         # Mean angular error
         ax.axvline(
-            x=self.angular_error.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.angular_error.mean().numpy() * 180 / math.pi:.1f}",
+            x=self.angular_error.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.angular_error.mean().detach().cpu().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
 
         # Highlight 1 sigma region
-        std = self.angular_error.std().numpy() * 180 / math.pi
-        mean = self.angular_error.mean().numpy() * 180 / math.pi
+        std = self.angular_error.std().detach().cpu().numpy() * 180 / math.pi
+        mean = self.angular_error.mean().detach().cpu().numpy() * 180 / math.pi
 
         ax.axvline(x=mean - std, color="green")
         ax.axvline(x=mean + std, color="green", label=r"$\pm 1 \sigma$")
@@ -340,7 +365,6 @@ class Tracking(AbsSave):
         """
         self._theta = None  # (mu)
         self._theta_xy = None  # (2, mu)
-        self._dtheta = None  # (mu)
 
     def _filter_muons(self, mask: Tensor) -> None:
         r"""
@@ -447,7 +471,7 @@ class Tracking(AbsSave):
         The angular error between the generated and reconstructed tracks.
         """
         if self._angular_error is None:
-            if self.hits.spatial_res is None:  # type: ignore
+            if (self.hits.spatial_res is None) | (self._compute_angular_res is False):  # type: ignore
                 self._angular_error = torch.zeros_like(self.theta)
             else:
                 self._angular_error = self.get_angular_error(self.theta)
@@ -460,7 +484,10 @@ class Tracking(AbsSave):
         angular error distribution.
         """
         if self._angular_res is None:
-            self._angular_res = self.angular_error.std().item()
+            if self._compute_angular_res:
+                self._angular_res = self.angular_error.std().item()
+            else:
+                self._angular_res = 0.0
         return self._angular_res
 
     @angular_res.setter
@@ -476,12 +503,12 @@ class Tracking(AbsSave):
         self._label = value
 
     @property
-    def type(self) -> str:
-        return self._type
+    def measurement_type(self) -> str:
+        return self._measurement_type
 
-    @type.setter
-    def type(self, value: str) -> None:
-        self._type = value
+    @measurement_type.setter
+    def measurement_type(self, value: str) -> None:
+        self._measurement_type = value
 
 
 class TrackingMST(AbsSave):
@@ -503,6 +530,7 @@ class TrackingMST(AbsSave):
         tracking_files: Optional[Tuple[str, str]] = None,
         trackings: Optional[Tuple[Tracking, Tracking]] = None,
         output_dir: Optional[str] = None,
+        save: bool = True,
     ) -> None:
         r"""
         Initializes the TrackingMST object with either 2 instances of the Tracking class
@@ -517,7 +545,7 @@ class TrackingMST(AbsSave):
             -  output_dir (Optional[str]): Path to a directory where to save TrackingMST attributes
             in a hdf5 file. (Not Implemented Yet).
         """
-        super().__init__(output_dir)
+        super().__init__(output_dir=output_dir, save=save)
 
         if tracking_files is None and trackings is None:
             raise ValueError(
@@ -662,30 +690,37 @@ class TrackingMST(AbsSave):
         )
 
         # Zenith angle
-        axs[0].hist(self.theta_in.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha)
+        axs[0].hist(
+            self.theta_in.detach().cpu().numpy() * 180 / math.pi,
+            bins=n_bins,
+            alpha=alpha,
+        )
         axs[0].axvline(
-            x=self.theta_in.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.theta_in.mean().numpy() * 180 / math.pi:.1f}",
+            x=self.theta_in.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.theta_in.mean().detach().cpu().numpy() * 180 / math.pi:.1f}",
             color="red",
         )
         axs[0].set_xlabel(r" Zenith angle $\theta$ [deg]", fontweight="bold")
 
         # Energy
-        axs[1].hist(self.E.numpy(), bins=n_bins, alpha=alpha, log=True)
+        axs[1].hist(self.E.detach().cpu().numpy(), bins=n_bins, alpha=alpha, log=True)
         axs[1].axvline(
-            x=self.E.mean().numpy(),
-            label=f"mean = {self.E.mean().numpy():.3E}",
+            x=self.E.mean().detach().cpu().numpy(),
+            label=f"mean = {self.E.mean().detach().cpu().numpy():.3E}",
             color="red",
         )
         axs[1].set_xlabel(r" Energy [MeV]", fontweight="bold")
 
         # Scattering angle
         axs[2].hist(
-            self.dtheta.numpy() * 180 / math.pi, bins=n_bins, alpha=alpha, log=True
+            self.dtheta.detach().cpu().numpy() * 180 / math.pi,
+            bins=n_bins,
+            alpha=alpha,
+            log=True,
         )
         axs[2].axvline(
-            x=self.dtheta.mean().numpy() * 180 / math.pi,
-            label=f"mean = {self.dtheta.mean().numpy() * 180 / math.pi:.3E}",
+            x=self.dtheta.mean().detach().cpu().numpy() * 180 / math.pi,
+            label=f"mean = {self.dtheta.mean().detach().cpu().numpy() * 180 / math.pi:.3E}",
             color="red",
         )
         axs[2].set_xlabel(r" Scattering angle $\delta\theta$ [deg]", fontweight="bold")

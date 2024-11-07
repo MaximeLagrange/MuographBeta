@@ -5,8 +5,11 @@ import numpy as np
 import h5py
 import os
 
-muograph_path = str(Path(__file__).parent.parent.parent)
-default_output_dir = muograph_path + "/output/"
+muograph_path = (
+    str(Path(__file__).parent.parent.parent).split("/MuographBeta/")[0]
+    + "/MuographBeta/"
+)
+default_output_dir: str = muograph_path + "/output/"
 
 
 class AbsSave:
@@ -15,18 +18,29 @@ class AbsSave:
     saving/loading.
     """
 
-    def __init__(self, output_dir: Optional[str] = None) -> None:
+    def __init__(self, output_dir: Optional[str] = None, save: bool = True) -> None:
         """
         Initializes the AbsSave object and ensures the output directory exists.
 
         Args:
             output_dir (str): The path to the directory where output files will be saved.
+            save (bool): If True, the output_dir gets created.
         """
         if output_dir is None:
             output_dir = default_output_dir
 
         self.output_dir = Path(output_dir)
-        self.create_directory(self.output_dir)
+
+        if save:
+            try:
+                self.create_directory(self.output_dir)
+            except FileNotFoundError:
+                print(f"Directory not found: {self.output_dir}")
+            except PermissionError:
+                print(f"Permission denied: Could not create {self.output_dir}")
+            except OSError as e:
+                # General fallback for other OS-related errors.
+                print(f"OS error occurred while creating {self.output_dir}: {e}")
 
     @staticmethod
     def create_directory(directory: Path) -> None:
@@ -60,7 +74,7 @@ class AbsSave:
             for attr in attributes:
                 value = getattr(self, attr)
                 if isinstance(value, Tensor):
-                    f.create_dataset(attr, data=value.numpy())
+                    f.create_dataset(attr, data=value.detach().cpu().numpy())
                 elif isinstance(value, (np.ndarray, float)):
                     f.create_dataset(attr, data=value)
                 elif isinstance(value, str):
@@ -69,7 +83,9 @@ class AbsSave:
         f.close()
         print("Class attributes saved at {}".format(directory / filename))
 
-    def load_attr(self, attributes: List[str], filename: str, tag: str = None) -> None:
+    def load_attr(
+        self, attributes: List[str], filename: str, tag: Optional[str] = None
+    ) -> None:
         r"""
         Loads class attributes from hdf5 file.
 

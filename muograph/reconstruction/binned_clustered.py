@@ -8,11 +8,13 @@ import math
 from pathlib import Path
 
 from utils.tools import normalize
+from utils.device import DEVICE
 from tracking.tracking import TrackingMST
 from reconstruction.poca import POCA
 from volume.volume import Volume
 
 value_type = Union[float, partial, Tuple[float, float], bool, int]
+bca_params_type = Dict[str, value_type]
 
 
 class BCA(POCA):
@@ -22,7 +24,7 @@ class BCA(POCA):
     _xyz_voxel_pred: Optional[Tensor] = None  # (Nx, Ny, Nz)
     _recompute_preds: bool = True
 
-    _bca_params: Dict[str, value_type] = {
+    _bca_params: bca_params_type = {
         "n_max_per_vox": 10,
         "n_min_per_vox": 3,
         "score_method": partial(np.quantile, q=0.5),
@@ -39,6 +41,7 @@ class BCA(POCA):
         voi: Volume,
         tracking: TrackingMST = None,
         output_dir: Optional[str] = None,
+        save: bool = True,
     ) -> None:
         r"""
         Initializes the BCA object with an instance of the TrackingMST class.
@@ -52,7 +55,7 @@ class BCA(POCA):
         """
 
         super().__init__(
-            output_dir=output_dir, tracking=tracking, voi=voi, poca_file=None
+            output_dir=output_dir, tracking=tracking, voi=voi, poca_file=None, save=save
         )
         self.bca_indices: Tensor = deepcopy(self.poca_indices)
         self.bca_poca_points: Tensor = deepcopy(self.poca_points)
@@ -126,8 +129,8 @@ class BCA(POCA):
         """
 
         # Initialize hit counters
-        nhit = torch.zeros(voi.n_vox_xyz, dtype=torch.int64)
-        nhit_cut = torch.zeros(voi.n_vox_xyz, dtype=torch.int64)
+        nhit = torch.zeros(voi.n_vox_xyz, dtype=torch.int64, device=DEVICE)
+        nhit_cut = torch.zeros(voi.n_vox_xyz, dtype=torch.int64, device=DEVICE)
 
         flat_vox_indices = (
             bca_indices[:, 0] * (voi.n_vox_xyz[1] * voi.n_vox_xyz[2])
@@ -143,7 +146,7 @@ class BCA(POCA):
         nhit.view(-1).scatter_(0, unique_voxels, counts)
 
         # Mask to identify which events should be rejected
-        rejected_events = torch.tensor([], dtype=torch.long)
+        rejected_events = torch.tensor([], dtype=torch.long, device=DEVICE)
 
         for voxel_idx in unique_voxels:
             # Get mask for the current voxel
@@ -173,7 +176,7 @@ class BCA(POCA):
 
         # Sort rejected events and create mask
         rejected_events, _ = torch.sort(rejected_events)
-        mask = torch.ones_like(dtheta, dtype=torch.bool)
+        mask = torch.ones_like(dtheta, dtype=torch.bool, device=DEVICE)
         mask[rejected_events] = False
 
         return mask, nhit, nhit_cut
@@ -219,7 +222,7 @@ class BCA(POCA):
 
         # Scattering metric
         if use_p is False:
-            momentum = torch.ones_like(dtheta)
+            momentum = torch.ones_like(dtheta, device=DEVICE, dtype=torch.float32)
         scattering_weights = self.compute_scattering_momentum_weight(
             dtheta=dtheta[poca_in_vox_mask],
             p=momentum[poca_in_vox_mask],
@@ -263,7 +266,9 @@ class BCA(POCA):
         """
 
         # Initialize score tensor with zeros
-        score_list = torch.zeros(voi.n_vox_xyz).tolist()
+        score_list = torch.zeros(
+            voi.n_vox_xyz, dtype=torch.int16, device=DEVICE
+        ).tolist()
 
         # Compute voxel indices and POCA point counts
         flat_vox_indices = (
@@ -321,8 +326,10 @@ class BCA(POCA):
         """
 
         Nx, Ny, Nz = self.voi.n_vox_xyz
-        final_voxel_scores = torch.zeros((Nx, Ny, Nz))
-        hit_per_voxel = torch.zeros((Nx, Ny, Nz))
+        final_voxel_scores = torch.zeros(
+            (Nx, Ny, Nz), device=DEVICE, dtype=torch.float32
+        )
+        hit_per_voxel = torch.zeros((Nx, Ny, Nz), device=DEVICE, dtype=torch.int16)
 
         # Iterate over each voxel in the score_list
         for i in range(Nx):
@@ -409,7 +416,9 @@ class BCA(POCA):
                 self.bca_tracks.E < self.bca_params["p_range"][1]  # type: ignore
             )
         else:
-            p_mask = torch.ones_like(self.bca_tracks.dtheta, dtype=torch.bool)
+            p_mask = torch.ones_like(
+                self.bca_tracks.dtheta, dtype=torch.bool, device=DEVICE
+            )
 
         # scattering angle cut
         dtheta_mask = (self.bca_tracks.dtheta > self.bca_params["dtheta_range"][0]) & (  # type: ignore
@@ -463,8 +472,8 @@ class BCA(POCA):
         metric = "metric_{}_".format(
             get_partial_name_args(self.bca_params["metric_method"])  # type: ignore
         )
-        dtheta = "{:.2f}_{:.2f}_rad_".format(
-            self.bca_params["dtheta_range"][0], self.bca_params["dtheta_range"][1]  # type: ignore
+        dtheta = "{:.1f}_{:.1f}_mrad_".format(
+            self.bca_params["dtheta_range"][0] * 1000, self.bca_params["dtheta_range"][1] * 1000  # type: ignore
         )
         dp = "{:.0f}_{:.0f}_MeV_".format(
             self.bca_params["p_range"][0], self.bca_params["p_range"][1]  # type: ignore
@@ -475,7 +484,6 @@ class BCA(POCA):
         use_p = "use_p_{}".format(self.bca_params["use_p"])
 
         bca_name = method + metric + dtheta + dp + n_min_max + use_p
-
         return bca_name
 
     @property
