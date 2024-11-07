@@ -14,7 +14,7 @@ from plotting.params import (
     hist_figsize,
     labelsize,
 )
-from utils.params import dtype_hit, dtype_E
+from utils.datatype import dtype_hit, dtype_E
 from utils.device import DEVICE
 
 allowed_d_units = ["m", "cm", "mm", "dm"]

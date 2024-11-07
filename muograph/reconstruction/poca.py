@@ -7,7 +7,7 @@ import numpy as np
 
 from utils.save import AbsSave
 from utils.device import DEVICE
-from utils.params import dtype_track, dtype_n
+from utils.datatype import dtype_track, dtype_n
 from volume.volume import Volume
 from tracking.tracking import TrackingMST
 from plotting.voxel import VoxelPlotting
