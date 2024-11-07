@@ -136,7 +136,7 @@ class Hits:
 
     @staticmethod
     def get_hits_from_df(
-        df: pd.DataFrame, plane_labels: Tuple[int, ...] = None
+        df: pd.DataFrame, plane_labels: Optional[Tuple[int, ...]] = None
     ) -> Tensor:
         r"""
         Extracts hits data from a DataFrame and returns it as a Tensor.
