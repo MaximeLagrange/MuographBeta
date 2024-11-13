@@ -55,7 +55,7 @@ class Tracking(AbsSave):
         output_dir: Optional[str] = None,
         tracks_hdf5: Optional[str] = None,
         measurement_type: Optional[str] = None,
-        save: bool = True,
+        save: bool = False,
         compute_angular_res: bool = False,
     ) -> None:
         r"""
@@ -530,7 +530,7 @@ class TrackingMST(AbsSave):
         tracking_files: Optional[Tuple[str, str]] = None,
         trackings: Optional[Tuple[Tracking, Tracking]] = None,
         output_dir: Optional[str] = None,
-        save: bool = True,
+        save: bool = False,
     ) -> None:
         r"""
         Initializes the TrackingMST object with either 2 instances of the Tracking class
