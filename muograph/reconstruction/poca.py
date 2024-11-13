@@ -49,7 +49,7 @@ class POCA(AbsSave, VoxelPlotting):
         voi: Optional[Volume] = None,
         poca_file: Optional[str] = None,
         output_dir: Optional[str] = None,
-        save: bool = True,
+        save: bool = False,
     ) -> None:
         r"""
         Initializes the POCA object with either an instance of the TrackingMST class or a
