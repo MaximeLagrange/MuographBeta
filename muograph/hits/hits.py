@@ -53,15 +53,25 @@ class Hits:
         input_unit: str = "mm",
     ) -> None:
         r"""
-        Initializes the Hits object with the path to the CSV file or a pd.DataFrame.
+        Initializes a Hits object to represent particle hit data from a detector, with input from either
+        a CSV file path or an existing DataFrame.
 
         Args:
-            plane_labels (Tuple[int, ...]) The labels  of the planes to load from the csv file, as a tuple of integers.
-            csv_filename (str): The path to the CSV file containing hit and energy data.
-            df (pd.DataFrame): The CSV file containing hit and energy data.
-            spatial_res (Tensor): The detector panels spatial resolution alon x, y and z in mm. All panels are assumed to have the same spatial resolution.
-            efficiency (float): The detectors panels efficiency. All panels are assumed to have the same efficiency.
-            input_unit (str): The unit of the input data. Data will be rescaled to mm.
+            plane_labels (Optional[Tuple[int, ...]]): Specifies the plane labels to include from the data,
+                as a tuple of integers. Only hits from these planes will be loaded if provided.
+            csv_filename (Optional[str]): The file path to the CSV containing hit and energy data.
+                Either `csv_filename` or `df` must be provided, but not both.
+            df (Optional[pd.DataFrame]): A DataFrame containing hit and energy data. Use this instead of
+                loading data from a CSV file.
+            spatial_res (Optional[Tuple[float, float, float]]): The spatial resolution of detector panels
+                along the x, y, and z axes, in units specified by `input_unit`. Assumes uniform resolution
+                across all panels if provided.
+            energy_range (Optional[Tuple[float, float]]): A tuple specifying the minimum and maximum energy
+                range for hits to be included. Only hits within this range will be processed if provided.
+            efficiency (float): The efficiency factor of the detector panels, applied uniformly across all panels.
+                Defaults to 1.0, representing full efficiency.
+            input_unit (str): The unit of measurement for the input data (e.g., "mm", "cm"). Data will be rescaled to
+                millimeters if another unit is specified. Defaults to "mm".
         """
 
         # Detector panel parameters
@@ -349,7 +359,7 @@ class Hits:
 
     @property
     def n_panels(self) -> int:
-        return self.gen_hits.size()[1]
+        return len(self.plane_labels)
 
     @property
     def E(self) -> Tensor:
