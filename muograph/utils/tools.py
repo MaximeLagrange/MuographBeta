@@ -3,6 +3,25 @@ from torch import Tensor
 from scipy.ndimage import gaussian_filter
 import numpy as np
 from typing import Union, List
+import os
+
+
+def write_folder_structure_to_file(root_folder: str, output_file: str) -> None:
+    with open(output_file, "w") as file:
+        for dirpath, dirnames, filenames in os.walk(root_folder):
+            # Filter out hidden directories
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if (not d.startswith(".")) and (not d.startswith("__py"))
+            ]
+            # Filter out hidden files
+            filenames = [f for f in filenames if (not f.startswith("."))]
+
+            # Write the directory path
+            file.write(f"{dirpath}/\n")
+            for filename in filenames:
+                file.write(f"    {filename}\n")
 
 
 def normalize(x: Union[Tensor, np.ndarray]) -> Union[Tensor, np.ndarray]:
